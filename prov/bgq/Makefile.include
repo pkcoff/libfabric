@@ -50,8 +50,10 @@ bgq_files = prov/bgq/src/fi_bgq_atomic.c \
 		prov/bgq/src/fi_bgq_tagged.c \
 		prov/bgq/src/fi_bgq_node.c \
 		prov/bgq/src/fi_bgq_progress.c \
-		prov/bgq/src/fi_bgq_pmi.c \
-		prov/bgq/external/memory_impl.c
+		prov/bgq/src/fi_bgq_pmi.c
+
+bgq_files_nodist = prov/bgq/external/memory_impl.c
+
 bgq_CPPFLAGS = -I@bgq_driver@ -I@bgq_driver@/spi/include/kernel/cnk
 bgq_LDFLAGS = -static
 
@@ -62,6 +64,7 @@ prov/bgq/external/memory_impl.c: @bgq_external_source@/spi/src/kernel/cnk/memory
 if HAVE_BGQ_DL
 pkglib_LTLIBRARIES += libbgq-fi.la
 libbgq_fi_la_SOURCES = $(bgq_files) $(common_srcs)
+nodist_libbgq_fi_la_SOURCES = $(bgq_files_nodist)
 libbgq_fi_la_CPPFLAGS = $(AM_CPPFLAGS) $(bgq_CPPFLAGS)
 libbgq_fi_la_LDFLAGS = \
     -module -avoid-version -export-dynamic $(bgq_LDFLAGS)
@@ -69,6 +72,7 @@ libbgq_fi_la_LIBADD = $(linkback) $(bgq_LIBS)
 libbgq_fi_la_DEPENDENCIES = $(linkback)
 else
 src_libfabric_la_SOURCES += $(bgq_files)
+nodist_src_libfabric_la_SOURCES += $(bgq_files_nodist)
 src_libfabric_la_CPPFLAGS += $(bgq_CPPFLAGS)
 src_libfabric_la_LDFLAGS += $(bgq_LDFLAGS)
 src_libfabric_la_LIBADD += $(bgq_LIBS)

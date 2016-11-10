@@ -99,6 +99,7 @@ util_fi_pingpong_SOURCES = \
 	util/pingpong.c
 util_fi_pingpong_LDADD = $(linkback)
 
+nodist_src_libfabric_la_SOURCES =
 src_libfabric_la_SOURCES = \
 	include/fi.h \
 	include/fi_abi.h \
