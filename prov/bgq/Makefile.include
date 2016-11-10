@@ -32,7 +32,7 @@
 if HAVE_BGQ
 AM_CFLAGS += -Wno-ignored-qualifiers
 AM_CPPFLAGS += -I$(builddir)/prov/bgq/include -I$(srcdir)/prov/bgq/include
-_bgq_files = prov/bgq/src/fi_bgq_atomic.c \
+bgq_files = prov/bgq/src/fi_bgq_atomic.c \
 		prov/bgq/src/fi_bgq_av.c \
 		prov/bgq/src/fi_bgq_spi.c \
 		prov/bgq/src/fi_bgq_cm.c \
@@ -61,14 +61,14 @@ prov/bgq/external/memory_impl.c: @bgq_external_source@/spi/src/kernel/cnk/memory
 
 if HAVE_BGQ_DL
 pkglib_LTLIBRARIES += libbgq-fi.la
-libbgq_fi_la_SOURCES = $(_bgq_files) $(common_srcs)
+libbgq_fi_la_SOURCES = $(bgq_files) $(common_srcs)
 libbgq_fi_la_CPPFLAGS = $(AM_CPPFLAGS) $(bgq_CPPFLAGS)
 libbgq_fi_la_LDFLAGS = \
     -module -avoid-version -export-dynamic $(bgq_LDFLAGS)
 libbgq_fi_la_LIBADD = $(linkback) $(bgq_LIBS)
 libbgq_fi_la_DEPENDENCIES = $(linkback)
 else
-src_libfabric_la_SOURCES += $(_bgq_files)
+src_libfabric_la_SOURCES += $(bgq_files)
 src_libfabric_la_CPPFLAGS += $(bgq_CPPFLAGS)
 src_libfabric_la_LDFLAGS += $(bgq_LDFLAGS)
 src_libfabric_la_LIBADD += $(bgq_LIBS)
