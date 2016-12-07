@@ -55,20 +55,26 @@
 #define FI_BGQ_MU_BAT_ID_BLACKHOLE (FI_BGQ_MU_BAT_ID_ONE+1)
 
 #define FI_BGQ_MUHWI_DESTINATION_MASK (0x073CF3C1ul)
+#define FI_BGQ_MUHWI_TCOORD_MASK (0xFF3CF3FFul)
 
 union fi_bgq_addr {
 	fi_addr_t			fi;
 	uint64_t			raw;
 	struct {
 		union {
+			uint32_t                dest_raw;
 			MUHWI_Destination_t	Destination;
 			struct {
-				uint32_t	reserved	:  2;
-				uint32_t	a		:  6;	/* only 3 bits are needed for Mira */
-				uint32_t	b		:  6;	/* only 4 bits are needed for Mira */
-				uint32_t	c		:  6;	/* only 4 bits are needed for Mira */
-				uint32_t	d		:  6;	/* only 4 bits are needed for Mira */
-				uint32_t	e		:  6;	/* only 1 bit is needed */
+				uint32_t	unused_0	:  5;
+				uint32_t	a		:  3;
+				uint32_t	t_top		:  2;
+				uint32_t	b		:  4;
+				uint32_t	t_middle	:  2;
+				uint32_t	c		:  4;
+				uint32_t	t_bottom	:  2;
+				uint32_t	d		:  4;
+				uint32_t	unused_1	:  5;
+				uint32_t	e		:  1;
 			};
 		};
 		uint16_t		fifo_map;			/* only 12 bits are needed for normal pt2pt; and only 10 bits for internode */
@@ -76,6 +82,25 @@ union fi_bgq_addr {
 		uint16_t		unused		:  7;
 		uint16_t		rx		:  8;		/* node-scoped reception context identifier; see NOTE_MU_RECFIFO */
 	};
+};
+
+union fi_bgq_addr_rank_coords {
+union {
+	uint32_t		origin_raw;
+	MUHWI_Destination_t	origin;
+	struct {
+		uint32_t	unused_0	:  5;
+		uint32_t	a		:  3;
+		uint32_t	t_top		:  2;
+		uint32_t	b		:  4;
+		uint32_t	t_middle	:  2;
+		uint32_t	c		:  4;
+		uint32_t	t_bottom	:  2;
+		uint32_t	d		:  4;
+		uint32_t	unused_1	:  5;
+		uint32_t	e		:  1;
+	};
+};
 };
 
 static inline
@@ -97,6 +122,9 @@ void fi_bgq_addr_dump (union fi_bgq_addr addr)
 	fprintf(stderr, "addr.c = %u\n", addr.c);
 	fprintf(stderr, "addr.d = %u\n", addr.d);
 	fprintf(stderr, "addr.e = %u\n", addr.e);
+	fprintf(stderr, "addr.t_top = %u\n", addr.t_top);
+	fprintf(stderr, "addr.t_middle = %u\n", addr.t_middle);
+	fprintf(stderr, "addr.t_bottom = %u\n", addr.t_bottom);
 	fprintf(stderr, "addr.fifo_map = 0x%04x\n", addr.fifo_map);
 	fprintf(stderr, "addr.is_local = %u\n", addr.is_local);
 	fprintf(stderr, "addr.rx = %u\n", addr.rx);
@@ -157,7 +185,22 @@ union fi_bgq_mu_packet_hdr {
 		uint64_t		message_length	: 10;	/* 0..512 bytes of payload data */
 		uint64_t		reserved_3	:  8;	/* a.k.a. common::packet_type */
 
-		MUHWI_Destination_t	origin;
+		union {
+			uint32_t		origin_raw;
+			MUHWI_Destination_t	origin;
+			struct {
+				uint32_t	unused_1	:  5;
+				uint32_t	a		:  3;
+				uint32_t	t_top		:  2;
+				uint32_t	b		:  4;
+				uint32_t	t_middle	:  2;
+				uint32_t	c		:  4;
+				uint32_t	t_bottom	:  2;
+				uint32_t	d		:  4;
+				uint32_t	unused_2	:  5;
+				uint32_t	e		:  1;
+			};
+		};
 		uint32_t		cntr_paddr_rsh3b;	/* 34b paddr, 8 byte aligned; See: NOTE_MU_PADDR */
 		uint64_t		ofi_tag;
 	} __attribute__((__packed__)) send;
@@ -181,11 +224,11 @@ union fi_bgq_mu_packet_hdr {
 				uint32_t	fifo_bp	:  1;	/* MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_BP */
 				uint32_t	fifo_cm	:  1;	/* MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_CM */
 				uint32_t	a	:  3;
-				uint32_t	unused0	:  2;
+				uint32_t	t_top	:  2;
 				uint32_t	b	:  4;
-				uint32_t	unused1	:  2;
+				uint32_t	t_middle	:  2;
 				uint32_t	c	:  4;
-				uint32_t	unused2	:  2;
+				uint32_t	t_bottom	:  2;
 				uint32_t	d	:  4;
 				uint32_t	fifo_cp	:  1;	/* MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_CP */
 				uint32_t	fifo_dm	:  1;	/* MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_DM */
@@ -584,6 +627,14 @@ void fi_bgq_create_addr (int8_t a_coord, int8_t b_coord,
 	bgq_addr->e = (e_coord == -1) ? p.Network_Config.Ecoord : e_coord;
 
 	if (t_coord == -1) t_coord = Kernel_MyTcoord();
+
+	uint8_t t_coord_mask = 0x3F;
+	bgq_addr->t_top = (t_coord & t_coord_mask) >> 4;
+	t_coord_mask = 0x0F;
+	bgq_addr->t_middle = (t_coord & t_coord_mask) >> 2;
+	t_coord_mask = 0x03;
+	bgq_addr->t_bottom = (t_coord & t_coord_mask);
+
 	bgq_addr->rx = (rx == -1) ? (64 / Kernel_ProcessCount()) * t_coord : rx;
 	bgq_addr->fifo_map = 0;	/* FIFO_Map to self? doesn't make sense, so set to zero to catch any usage and fix it */
 	bgq_addr->is_local =
@@ -593,6 +644,8 @@ void fi_bgq_create_addr (int8_t a_coord, int8_t b_coord,
 		(bgq_addr->d == p.Network_Config.Dcoord) &&
 		(bgq_addr->e == p.Network_Config.Ecoord);
 
+//fprintf(stderr,"in create_addr t_coord is %u dump is:\n",t_coord);
+//fi_bgq_addr_dump(*bgq_addr);
 	return;
 }
 

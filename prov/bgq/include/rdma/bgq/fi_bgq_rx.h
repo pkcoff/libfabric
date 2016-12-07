@@ -247,9 +247,9 @@ void inject_eager_completion (struct fi_bgq_ep * bgq_ep,
 
 	qpx_memcpy64((void*)desc, (const void*)&bgq_ep->rx.poll.ack_model[is_local]);
 
+	const uint32_t origin = pkt->hdr.send.origin_raw & FI_BGQ_MUHWI_TCOORD_MASK;
 	MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, cntr_paddr);
-	desc->PacketHeader.NetworkHeader.pt2pt.Destination = pkt->hdr.send.origin;
-
+	desc->PacketHeader.NetworkHeader.pt2pt.Destination.Destination.Destination = origin;
 	MUSPI_InjFifoAdvanceDesc(bgq_ep->rx.poll.injfifo.muspi_injfifo);
 
 	return;

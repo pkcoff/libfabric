@@ -46,13 +46,21 @@ void fi_bgq_addr_initialize (union fi_bgq_addr * output,
 	const uint32_t rx_per_domain = rx_per_process / domains_per_process;
 	const uint32_t rx_per_endpoint = rx_per_domain / endpoints_per_domain;
 
-	output->reserved	= 0;
+// output->reserved        = 0;
+	output->unused_0	= 0;
+	output->unused_1	= 0;
 	output->a		= a;
 	output->b		= b;
 	output->c		= c;
 	output->d		= d;
 	output->e		= e;
 
+	uint32_t t_coord_mask = 0x0000003F;
+	output->t_top = (t & t_coord_mask) >> 4;
+	t_coord_mask = 0x0000000F;
+	output->t_middle =(t & t_coord_mask) >> 2;
+	t_coord_mask = 0x00000003;
+	output->t_bottom = (t & t_coord_mask);
 	output->is_local	=
 		(my_coords->a == a) &&
 		(my_coords->b == b) &&
@@ -73,6 +81,9 @@ void fi_bgq_addr_initialize (union fi_bgq_addr * output,
 	output->rx		= (rx_per_process * t) +
 				(rx_per_domain * domain_id) +
 				(rx_per_endpoint * endpoint_id);
+//fprintf(stderr,"in fi_bgq_addr_initialize t is %u  dump is:\n",t);
+//fi_bgq_addr_dump(*output);
+
 }
 
 static int fi_bgq_close_av(fid_t fid)

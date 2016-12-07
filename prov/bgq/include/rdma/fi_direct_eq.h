@@ -96,6 +96,7 @@ union fi_bgq_context {
 			struct fi_bgq_mu_packet	*claim;	// only for peek/claim
 			void			*multi_recv_context;	// only for individual FI_MULTI_RECV's
 		};
+		union fi_bgq_addr_rank_coords src_addr_rank_coords;
 	};
 };
 

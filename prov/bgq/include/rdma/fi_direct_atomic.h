@@ -243,7 +243,8 @@ static inline void fi_bgq_atomic_fence (struct fi_bgq_ep * bgq_ep,
 		qpx_memcpy64((void*)desc, (const void*)model);
 
 		/* set the destination torus address and fifo map */
-		desc->PacketHeader.NetworkHeader.pt2pt.Destination = bgq_dst_addr->Destination;
+
+		desc->PacketHeader.NetworkHeader.pt2pt.Destination.Destination.Destination = (bgq_dst_addr->dest_raw & FI_BGQ_MUHWI_TCOORD_MASK);
 		desc->Torus_FIFO_Map = (uint64_t) bgq_dst_addr->fifo_map;
 
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Memory_FIFO.Rec_FIFO_Id =
@@ -355,7 +356,7 @@ static inline size_t fi_bgq_atomic_internal(struct fi_bgq_ep *bgq_ep,
 	qpx_memcpy64((void*)desc, (const void*)&bgq_ep->tx.atomic.emulation.mfifo_model);
 
 	/* set the destination torus address and fifo map */
-	desc->PacketHeader.NetworkHeader.pt2pt.Destination = bgq_dst_addr->Destination;
+	desc->PacketHeader.NetworkHeader.pt2pt.Destination.Destination.Destination = (bgq_dst_addr->dest_raw & FI_BGQ_MUHWI_TCOORD_MASK);
 	desc->Torus_FIFO_Map = bgq_dst_addr->fifo_map;
 
 	desc->PacketHeader.messageUnitHeader.Packet_Types.Memory_FIFO.Rec_FIFO_Id =

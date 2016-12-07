@@ -480,7 +480,7 @@ ssize_t fi_bgq_inject_generic(struct fid_ep *ep,
 		qpx_memcpy64((void*)inject_desc, (const void*)&bgq_ep->tx.inject.inject_model);
 
 		/* set the destination torus address and fifo map */
-		inject_desc->PacketHeader.NetworkHeader.pt2pt.Destination = bgq_dst_addr.Destination;
+		inject_desc->PacketHeader.NetworkHeader.pt2pt.Destination.Destination.Destination = (bgq_dst_addr.dest_raw & FI_BGQ_MUHWI_TCOORD_MASK);
 		inject_desc->Torus_FIFO_Map = bgq_dst_addr.fifo_map;
 
 		inject_desc->PacketHeader.messageUnitHeader.Packet_Types.Memory_FIFO.Rec_FIFO_Id =
@@ -508,7 +508,7 @@ ssize_t fi_bgq_inject_generic(struct fid_ep *ep,
 		qpx_memcpy64((void*)send_desc, (const void*)&bgq_ep->tx.send.send_model);
 
 		/* set the destination torus address and fifo map */
-		send_desc->PacketHeader.NetworkHeader.pt2pt.Destination = bgq_dst_addr.Destination;
+		send_desc->PacketHeader.NetworkHeader.pt2pt.Destination.Destination.Destination = (bgq_dst_addr.dest_raw & FI_BGQ_MUHWI_TCOORD_MASK);
 		send_desc->Torus_FIFO_Map = (uint64_t) bgq_dst_addr.fifo_map;
 
 		send_desc->PacketHeader.messageUnitHeader.Packet_Types.Memory_FIFO.Rec_FIFO_Id =
@@ -588,7 +588,7 @@ ssize_t fi_bgq_send_generic_flags(struct fid_ep *ep,
 		qpx_memcpy64((void*)send_desc, (const void *)&bgq_ep->tx.send.send_model);
 
 		/* set the destination torus address and fifo map */
-		send_desc->PacketHeader.NetworkHeader.pt2pt.Destination = bgq_dst_addr.Destination;
+		send_desc->PacketHeader.NetworkHeader.pt2pt.Destination.Destination.Destination = (bgq_dst_addr.dest_raw & FI_BGQ_MUHWI_TCOORD_MASK);
 		send_desc->Torus_FIFO_Map = (uint64_t) bgq_dst_addr.fifo_map;
 
 		send_desc->Message_Length = xfer_len;
@@ -699,7 +699,7 @@ ssize_t fi_bgq_send_generic_flags(struct fid_ep *ep,
 		qpx_memcpy64((void*)send_desc, (const void *)&bgq_ep->tx.send.rzv_model[is_local]);
 
 		/* set the destination torus address and fifo map */
-		send_desc->PacketHeader.NetworkHeader.pt2pt.Destination = bgq_dst_addr.Destination;
+		send_desc->PacketHeader.NetworkHeader.pt2pt.Destination.Destination.Destination = (bgq_dst_addr.dest_raw & FI_BGQ_MUHWI_TCOORD_MASK);
 		send_desc->Torus_FIFO_Map = (uint64_t) bgq_dst_addr.fifo_map;
 
 		send_desc->PacketHeader.messageUnitHeader.Packet_Types.Memory_FIFO.Rec_FIFO_Id =
@@ -812,7 +812,7 @@ ssize_t fi_bgq_recv_generic(struct fid_ep *ep,
 	bgq_context->byte_counter = (uint64_t)-1;
 	bgq_context->tag = tag;
 	bgq_context->ignore = ignore;
-
+// put the src addr stuff here
 	if (FI_BGQ_FABRIC_DIRECT_PROGRESS == FI_PROGRESS_MANUAL) {	/* constant expression will compile out */
 
 		int ret;
