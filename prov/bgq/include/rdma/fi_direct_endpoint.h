@@ -470,35 +470,7 @@ ssize_t fi_bgq_inject_generic(struct fid_ep *ep,
 	/* get the destination bgq torus address */
 	union fi_bgq_addr bgq_dst_addr;
 	bgq_dst_addr.fi = dest_addr;
-
-	if (len <= 8) {		/* likely ? */
-
-		/* busy-wait until a fifo slot is available ... */
-		MUHWI_Descriptor_t * inject_desc = fi_bgq_spi_injfifo_tail_wait(&bgq_ep->tx.injfifo);
-
-		/* copy the descriptor model into the injection fifo */
-		qpx_memcpy64((void*)inject_desc, (const void*)&bgq_ep->tx.inject.inject_model);
-
-		/* set the destination torus address and fifo map */
-		inject_desc->PacketHeader.NetworkHeader.pt2pt.Destination.Destination.Destination = (bgq_dst_addr.dest_raw & FI_BGQ_MUHWI_TCOORD_MASK);
-		inject_desc->Torus_FIFO_Map = bgq_dst_addr.fifo_map;
-
-		inject_desc->PacketHeader.messageUnitHeader.Packet_Types.Memory_FIFO.Rec_FIFO_Id =
-			fi_bgq_addr_rec_fifo_id(dest_addr);
-
-		union fi_bgq_mu_packet_hdr * hdr = (union fi_bgq_mu_packet_hdr *) &inject_desc->PacketHeader;
-
-		if (is_msg) {
-			fi_bgq_mu_packet_type_set(hdr, FI_BGQ_MU_PACKET_TYPE_INJECT);
-		}
-
-		if (buf) hdr->inject.data = *((uint64_t*)buf);
-		hdr->inject.ofi_tag = tag;
-		hdr->inject.message_length = len;
-
-		MUSPI_InjFifoAdvanceDesc(bgq_ep->tx.injfifo.muspi_injfifo);
-
-	} else {
+	{
 		/* eager with lookaside payload buffer and no completion */
 
 		/* busy-wait until a fifo slot is available ... */
@@ -812,7 +784,12 @@ ssize_t fi_bgq_recv_generic(struct fid_ep *ep,
 	bgq_context->byte_counter = (uint64_t)-1;
 	bgq_context->tag = tag;
 	bgq_context->ignore = ignore;
-// put the src addr stuff here
+
+	/* Add the source address info for FI_DIRECTED_RECV support. */
+	union fi_bgq_addr bgq_src_addr;
+	bgq_src_addr.fi = src_addr;
+	bgq_context->src_addr_rank_coords.raw = bgq_src_addr.dest_raw;
+
 	if (FI_BGQ_FABRIC_DIRECT_PROGRESS == FI_PROGRESS_MANUAL) {	/* constant expression will compile out */
 
 		int ret;

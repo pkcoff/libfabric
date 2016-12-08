@@ -612,6 +612,7 @@ void complete_receive_operation (struct fi_bgq_ep * bgq_ep,
 	return;
 }
 
+/* is_match matches on the source and tag info. */
 static inline
 unsigned is_match(struct fi_bgq_mu_packet *pkt, union fi_bgq_context * context, const unsigned poll_msg)
 {
@@ -623,7 +624,9 @@ unsigned is_match(struct fi_bgq_mu_packet *pkt, union fi_bgq_context * context, 
 	const uint64_t target_tag_and_not_ignore = target_tag & ~ignore;
 	const uint64_t origin_tag_and_not_ignore = origin_tag & ~ignore;
 
-	return origin_tag_and_not_ignore == target_tag_and_not_ignore;
+	/* for FI_DIRECTED_RECV the source is not in the match bits */
+	/* we need to match the source separately */
+	return ((origin_tag_and_not_ignore == target_tag_and_not_ignore) && (context->src_addr_rank_coords.raw == pkt->hdr.send.origin_raw));
 }
 
 
@@ -657,7 +660,10 @@ void process_rfifo_packet_optimized (struct fi_bgq_ep * bgq_ep, struct fi_bgq_mu
 		inject_eager_completion(bgq_ep, pkt);
 	}
 
-	assert(packet_type & (FI_BGQ_MU_PACKET_TYPE_INJECT | FI_BGQ_MU_PACKET_TYPE_EAGER | FI_BGQ_MU_PACKET_TYPE_RENDEZVOUS));
+	/* we are no longer sending FI_BGQ_MU_PACKET_TYPE_INJECT since there isn't room for */
+	/* any payload in the header anymore with the extra 4 bytes we need for */
+	/* FI_DIRECTED_RECV */
+	assert(packet_type & ( FI_BGQ_MU_PACKET_TYPE_EAGER | FI_BGQ_MU_PACKET_TYPE_RENDEZVOUS));
 
 	/* search the match queue */
 	union fi_bgq_context * head = bgq_ep->rx.poll.rfifo[poll_msg].mq.head;

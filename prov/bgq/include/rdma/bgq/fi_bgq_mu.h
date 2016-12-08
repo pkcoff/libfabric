@@ -86,8 +86,7 @@ union fi_bgq_addr {
 
 union fi_bgq_addr_rank_coords {
 union {
-	uint32_t		origin_raw;
-	MUHWI_Destination_t	origin;
+	uint32_t		raw;
 	struct {
 		uint32_t	unused_0	:  5;
 		uint32_t	a		:  3;
