@@ -32,7 +32,7 @@ Key features include:
 *Primary capabilities*
 : Supported primary capabilities include *FI_MSG*, *FI_RMA*, *FI_TAGGED*,
   *FI_ATOMIC*, *FI_NAMED_RX_CTX*, *FI_READ*, *FI_WRITE*, *FI_SEND*, *FI_RECV*,
-  *FI_REMOTE_READ*, and *FI_REMOTE_WRITE*.
+  *FI_REMOTE_READ*, *FI_DIRECTED_RECV* and *FI_REMOTE_WRITE*.
 
 *Secondary capabilities*
 : Supported secondary capabilities include *FI_MULTI_RECV* and *FI_FENCE*.
@@ -63,9 +63,6 @@ Key features include:
 *Endpoint types*
 : Unsupported endpoint types include *FI_EP_DGRAM* and *FI_EP_MSG*
 
-*Primary capabilities*
-: The bgq provider does not support the *FI_DIRECTED_RECV *capability.
-
 *Secondary capabilities*
 : The bgq provider does not support the *FI_SOURCE*, *FI_RMA_EVENT*, and
   *FI_TRIGGER* capabilities.
@@ -78,6 +75,12 @@ Key features include:
   Support for *FI_AV_TABLE* may be added in the future.
 
 # LIMITATIONS
+
+In order to optimize network communication and enable FI_DIRECTED_RECV some bits
+in the source address that are used to define the torus address needed to be
+taken away, thereby limiting the size of the largest block or machine that
+this code can run on.  That size is the size to address all nodes on Mira at the ALCF,
+with torus abcde dimensions 8x16x16x16x2.
 
 The bgq provider only supports *FABRIC_DIRECT*. The size of the fi_context
 structure for *FI_CONTEXT* is too small to be useful. In the 'direct' mode the
