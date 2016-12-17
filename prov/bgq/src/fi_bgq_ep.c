@@ -45,6 +45,8 @@
 #include "rdma/bgq/fi_bgq_spi.h"
 #include "rdma/bgq/fi_bgq_rx.h"
 
+// #define EP_DEBUG 1
+
 static int fi_bgq_close_stx_nofree(struct fi_bgq_stx *bgq_stx)
 {
 	int ret;
@@ -483,6 +485,10 @@ static int fi_bgq_ep_tx_init (struct fi_bgq_ep *bgq_ep,
 
 	const union fi_bgq_addr self = {.fi=fi_bgq_addr_create(destination, fifo_map, base_rx)};
 
+#ifdef EP_DEBUG
+	fprintf(stderr,"fi_bgq_ep_tx_init created addr:\n");
+	fi_bgq_addr_dump(self);
+#endif
 	/*
 	 *  fi_[t]inject() descriptor models
 	 */
@@ -511,7 +517,7 @@ static int fi_bgq_ep_tx_init (struct fi_bgq_ep *bgq_ep,
 
 		union fi_bgq_mu_packet_hdr * hdr = (union fi_bgq_mu_packet_hdr *) &desc->PacketHeader;
 		fi_bgq_mu_packet_type_set(hdr, FI_BGQ_MU_PACKET_TYPE_TAG|FI_BGQ_MU_PACKET_TYPE_INJECT);
-		hdr->inject.unused_1 = 0;
+		hdr->inject.uid.fi = self.uid.fi;
 		hdr->inject.immediate_data = 0;
 
 		/* send model - copy from inject model and update */
@@ -1011,7 +1017,10 @@ static int fi_bgq_ep_rx_init(struct fi_bgq_ep *bgq_ep)
 
 	bgq_ep->rx.self.fi = fi_bgq_addr_create(destination, fifo_map, rx);
 
-
+#ifdef EP_DEBUG
+	fprintf(stderr,"fi_bgq_ep_rx_init created addr:\n");
+	fi_bgq_addr_dump(bgq_ep->rx.self);
+#endif
 	/* assign the mu reception fifos - all potential
 	 * reception fifos were allocated at domain initialization */
 	if (NULL == bgq_domain->rx.rfifo[fi_bgq_uid_get_rx(bgq_ep->rx.self.uid.fi)]) {

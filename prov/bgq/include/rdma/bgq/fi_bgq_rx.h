@@ -35,6 +35,8 @@
 #define FI_BGQ_UEPKT_BLOCKSIZE (1024)
 #define PROCESS_RFIFO_MAX 64
 
+// #define RX_DEBUG 1
+
 /* forward declaration - see: prov/bgq/src/fi_bgq_atomic.c */
 void fi_bgq_rx_atomic_dispatch (void * buf, void * addr, size_t nbytes,
 	enum fi_datatype dt, enum fi_op op);
@@ -621,17 +623,26 @@ void complete_receive_operation (struct fi_bgq_ep * bgq_ep,
 }
 
 static inline
-unsigned is_match(struct fi_bgq_mu_packet *pkt, union fi_bgq_context * context, const unsigned poll_msg)
+unsigned is_match(struct fi_bgq_mu_packet const * const pkt, union fi_bgq_context const * const context, const unsigned poll_msg)
 {
-	if (poll_msg && context->src_addr == FI_ADDR_UNSPEC) return 1;
+	if (poll_msg) { 	/* constant expression will compile out */
+		assert(context->src_addr.fi == FI_ADDR_UNSPEC);
+		return 1;
+	}
 
-	const uint64_t origin_tag = pkt->hdr.inject.ofi_tag;
+	const fi_bgq_uid_t target_src_uid = context->src_addr.uid.fi;
+	const fi_bgq_uid_t origin_src_uid = pkt->hdr.inject.uid.fi;
+
 	const uint64_t ignore = context->ignore;
 	const uint64_t target_tag = context->tag;
 	const uint64_t target_tag_and_not_ignore = target_tag & ~ignore;
+	const uint64_t origin_tag = pkt->hdr.inject.ofi_tag;
 	const uint64_t origin_tag_and_not_ignore = origin_tag & ~ignore;
 
-	return origin_tag_and_not_ignore == target_tag_and_not_ignore;
+#ifdef RX_DEBUG
+	fprintf(stderr, "%s:%s():%d ignore = 0x%016lx, origin_tag = 0x%016lx, target_tag = 0x%016lx, target_tag_and_not_ignore = 0x%016lx, origin_tag_and_not_ignore = 0x%016lx, origin_src_uid = 0x%08x, target_src_uid = 0x%08x\n", __FILE__, __func__, __LINE__, ignore, origin_tag, target_tag, target_tag_and_not_ignore, origin_tag_and_not_ignore, origin_src_uid, target_src_uid);
+#endif
+	return ((origin_tag_and_not_ignore == target_tag_and_not_ignore) && ((origin_src_uid & ~(target_src_uid)) == 0));
 }
 
 

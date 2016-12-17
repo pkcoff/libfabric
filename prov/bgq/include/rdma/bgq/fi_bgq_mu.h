@@ -57,7 +57,6 @@
 #define FI_BGQ_MUHWI_DESTINATION_MASK (0x073CF3C1ul)
 
 
-
 typedef uint32_t		fi_bgq_uid_t;
 
 union fi_bgq_uid {
@@ -142,6 +141,7 @@ fi_bgq_uid_t fi_bgq_uid_create (const MUHWI_Destination_t destination, const uin
 	return fi_bgq_uid_set_rx(tmp.fi, rx);
 }
 
+// #define MU_DEBUG 1
 
 union fi_bgq_addr {
 	fi_addr_t			fi;
@@ -185,7 +185,6 @@ fi_bgq_addr_dump (char * prefix, fi_addr_t * addr) {
 	snprintf(prefix, 1023, "%s:%s():%d", __FILE__, __func__, __LINE__);	\
 	fi_bgq_addr_dump(prefix, (addr));					\
 })
-
 
 static inline
 uint64_t fi_bgq_addr_rec_fifo_id (const fi_addr_t addr) {
@@ -325,7 +324,8 @@ union fi_bgq_mu_packet_hdr {
 		uint16_t		message_length	:  1;	/* 0..1 bytes of immediate data */
 		uint8_t			data;
 		uint8_t			reserved_3;		/* a.k.a. common::packet_type */
-		uint32_t		unused_1;
+
+		union fi_bgq_uid	uid;
 		uint32_t		immediate_data;
 		uint64_t		ofi_tag;
 	} __attribute__((__packed__)) inject;

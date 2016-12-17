@@ -68,7 +68,7 @@ ssize_t fi_bgq_tsendmsg(struct fid_ep *ep,
 		const enum fi_threading threading = bgq_ep->threading;
 
 		/* assert that the most significant bits are zero in the immediate data */
-		assert(0 == (~((0x01ull << (FI_BGQ_REMOTE_CQ_DATA_SIZE * sizeof(uint8_t))) - 1) & msg->data));
+//		assert(0 == (~((0x01ull << (FI_BGQ_REMOTE_CQ_DATA_SIZE * sizeof(uint8_t))) - 1) & msg->data));
 
 		return fi_bgq_send_generic_flags(ep, msg->msg_iov, niov,
 			msg->desc, msg->addr, msg->tag, msg->context, msg->data,

@@ -52,6 +52,8 @@
 #define IS_TAG (0)
 #define IS_MSG (1)
 
+//#define ENDPOINT_DEBUG 1
+
 enum fi_bgq_ep_state {
 	FI_BGQ_EP_UNINITIALIZED = 0,
 	FI_BGQ_EP_INITITALIZED_DISABLED,
@@ -458,6 +460,9 @@ ssize_t fi_bgq_inject_generic(struct fid_ep *ep,
 		int lock_required,
 		const unsigned is_msg)
 {
+#ifdef ENDPOINT_DEBUG
+	fprintf(stderr,"fi_bgq_inject_generic\n");
+#endif
 	assert(is_msg == 0 || is_msg == 1);
 
 	struct fi_bgq_ep *bgq_ep = container_of(ep, struct fi_bgq_ep, ep_fid);
@@ -499,6 +504,10 @@ ssize_t fi_bgq_inject_generic(struct fid_ep *ep,
 		hdr->inject.message_length = len;
 		hdr->inject.immediate_data = data;
 
+#ifdef ENDPOINT_DEBUG
+		fprintf(stderr,"1 byte hdr->inject src addr set to %u %u %u %u %u %u rec fifo is %u dumping target addr:\n",hdr->inject.a,hdr->inject.b,hdr->inject.c,hdr->inject.d,hdr->inject.e,hdr->inject.rx,inject_desc->PacketHeader.messageUnitHeader.Packet_Types.Memory_FIFO.Rec_FIFO_Id);
+		fi_bgq_addr_dump(bgq_dst_addr);
+#endif
 		MUSPI_InjFifoAdvanceDesc(bgq_ep->tx.injfifo.muspi_injfifo);
 
 	} else {
@@ -537,6 +546,10 @@ ssize_t fi_bgq_inject_generic(struct fid_ep *ep,
 		hdr->send.ofi_tag = tag;
 		hdr->send.immediate_data = data;
 
+#ifdef ENDPOINT_DEBUG
+		fprintf(stderr,"multi-byte inject hdr->send src addr set to %u %u %u %u %u %u rec fifo is %u dumping target addr:\n",hdr->send.a,hdr->send.b,hdr->send.c,hdr->send.d,hdr->send.e,hdr->send.rx,send_desc->PacketHeader.messageUnitHeader.Packet_Types.Memory_FIFO.Rec_FIFO_Id);
+		fi_bgq_addr_dump(bgq_dst_addr);
+#endif
 		MUSPI_InjFifoAdvanceDesc(bgq_ep->tx.injfifo.muspi_injfifo);
 	}
 
@@ -626,6 +639,10 @@ ssize_t fi_bgq_send_generic_flags(struct fid_ep *ep,
 		hdr->send.ofi_tag = tag;
 		hdr->send.immediate_data = data;
 
+#ifdef ENDPOINT_DEBUG
+		fprintf(stderr,"hdr->send src addr set to %u %u %u %u %u %u rec fifo is %u dumping target addr:\n",hdr->send.a,hdr->send.b,hdr->send.c,hdr->send.d,hdr->send.e,hdr->send.rx,send_desc->PacketHeader.messageUnitHeader.Packet_Types.Memory_FIFO.Rec_FIFO_Id);
+		fi_bgq_addr_dump(bgq_dst_addr);
+#endif
 		if (is_msg) {
 			fi_bgq_mu_packet_type_set(hdr, FI_BGQ_MU_PACKET_TYPE_EAGER);	/* clear the 'TAG' bit in the packet type */
 		}
@@ -831,7 +848,18 @@ ssize_t fi_bgq_recv_generic(struct fid_ep *ep,
 	bgq_context->flags = rx_op_flags;
 	bgq_context->len = len;
 	bgq_context->buf = buf;
-	bgq_context->src_addr = src_addr;
+	bgq_context->src_addr.fi = src_addr;
+
+#ifdef ENDPOINT_DEBUG
+	union fi_bgq_addr bgq_addr;
+	bgq_addr.fi = bgq_context->src_addr;
+	fprintf(stderr,"fi_bgq_recv_generic for src addr:\n");
+	fi_bgq_addr_dump(bgq_addr);
+	if (src_addr == FI_ADDR_UNSPEC) {
+		fprintf(stderr,"fi_bgq_recv_generic src addr  == FI_ADDR_UNSPEC\n");
+	}
+#endif
+
 	bgq_context->tag = tag;
 	bgq_context->ignore = ignore;
 	bgq_context->byte_counter = (uint64_t)-1;
@@ -908,7 +936,7 @@ ssize_t fi_bgq_recvmsg_generic(struct fid_ep *ep,
 		bgq_context->flags = FI_MULTI_RECV;
 		bgq_context->len = len - sizeof(union fi_bgq_context);
 		bgq_context->buf = (void *)((uintptr_t)base + sizeof(union fi_bgq_context));
-		bgq_context->src_addr = msg->addr;
+		bgq_context->src_addr.fi = msg->addr;
 		bgq_context->byte_counter = 0;
 		bgq_context->multi_recv_next = (union fi_bgq_context *)base;
 		bgq_context->ignore = (uint64_t)-1;
@@ -926,7 +954,7 @@ ssize_t fi_bgq_recvmsg_generic(struct fid_ep *ep,
 		bgq_context->flags = flags;
 		bgq_context->len = 0;
 		bgq_context->buf = NULL;
-		bgq_context->src_addr = msg->addr;
+		bgq_context->src_addr.fi = msg->addr;
 		bgq_context->tag = 0;
 		bgq_context->ignore = (uint64_t)-1;
 		bgq_context->byte_counter = (uint64_t)-1;
@@ -943,7 +971,7 @@ ssize_t fi_bgq_recvmsg_generic(struct fid_ep *ep,
 		bgq_context->flags = flags;
 		bgq_context->len = msg->msg_iov[0].iov_len;
 		bgq_context->buf = msg->msg_iov[0].iov_base;
-		bgq_context->src_addr = msg->addr;
+		bgq_context->src_addr.fi = msg->addr;
 		bgq_context->tag = 0;
 		bgq_context->ignore = (uint64_t)-1;
 		bgq_context->byte_counter = (uint64_t)-1;
@@ -957,7 +985,7 @@ ssize_t fi_bgq_recvmsg_generic(struct fid_ep *ep,
 
 		ext->bgq_context.flags = flags | FI_BGQ_CQ_CONTEXT_EXT;
 		ext->bgq_context.byte_counter = (uint64_t)-1;
-		ext->bgq_context.src_addr = msg->addr;
+		ext->bgq_context.src_addr.fi = msg->addr;
 		ext->bgq_context.tag = 0;
 		ext->bgq_context.ignore = (uint64_t)-1;
 		ext->msg.op_context = (struct fi_context *)msg->context;
@@ -1022,7 +1050,7 @@ ssize_t fi_bgq_injectdata_generic(struct fid_ep *ep,
 		const unsigned is_msg)
 {
 	/* assert that the most significant bits are zero */
-	assert(0 == (~((0x01ull << (FI_BGQ_REMOTE_CQ_DATA_SIZE * sizeof(uint8_t))) - 1) & data));
+//	assert(0 == (~((0x01ull << (FI_BGQ_REMOTE_CQ_DATA_SIZE * sizeof(uint8_t))) - 1) & data));
 
 	return fi_bgq_inject_generic(ep, buf, len, dst_addr, tag, data,
 			lock_required, is_msg);
@@ -1037,7 +1065,7 @@ ssize_t fi_bgq_senddata_generic(struct fid_ep *ep,
 		const unsigned is_msg)
 {
 	/* assert that the most significant bits are zero */
-	assert(0 == (~((0x01ull << (FI_BGQ_REMOTE_CQ_DATA_SIZE * sizeof(uint8_t))) - 1) & data));
+//	assert(0 == (~((0x01ull << (FI_BGQ_REMOTE_CQ_DATA_SIZE * sizeof(uint8_t))) - 1) & data));
 
 	assert(is_msg == 0 || is_msg == 1);
 	return fi_bgq_send_generic_flags(ep, buf, len, desc, dst_addr,

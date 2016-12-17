@@ -88,7 +88,7 @@ union fi_bgq_context {
 
 		union {
 			uint64_t	data;		// fi_cq_data_entry::data; only used after a message is matched
-			fi_addr_t	src_addr;	/* only used before a message is matched ('FI_DIRECTED_RECEIVE') */
+			union fi_bgq_addr	src_addr;	/* only used before a message is matched ('FI_DIRECTED_RECEIVE') */
 		};
 
 		union {
