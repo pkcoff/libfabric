@@ -39,7 +39,8 @@ ssize_t fi_bgq_sendmsg(struct fid_ep *ep, const struct fi_msg *msg,
 	const enum fi_threading threading = bgq_ep->threading;
 
 	/* assert that the most significant bits are zero in the immediate data */
-	assert(0 == (~((0x01ull << (FI_BGQ_REMOTE_CQ_DATA_SIZE * sizeof(uint8_t))) - 1) & msg->data));
+/* FI_BGQ_REMOTE_CQ_DATA_SIZE assertion check disabled for now because mpich ch4 is not honoring the bgq setting. */
+//	assert(0 == (~((0x01ull << (FI_BGQ_REMOTE_CQ_DATA_SIZE * sizeof(uint8_t))) - 1) & msg->data));
 
 	return fi_bgq_send_generic_flags(ep, msg->msg_iov, msg->iov_count,
 		msg->desc, msg->addr, 0, msg->context, msg->data,
