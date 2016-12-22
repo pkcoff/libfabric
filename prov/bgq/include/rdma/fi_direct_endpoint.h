@@ -471,8 +471,7 @@ ssize_t fi_bgq_inject_generic(struct fid_ep *ep,
 	if (ret) return ret;
 
 	/* get the destination bgq torus address */
-	union fi_bgq_addr bgq_dst_addr;
-	bgq_dst_addr.fi = dest_addr;
+	const union fi_bgq_addr bgq_dst_addr = {.fi=dest_addr};
 
 	if (len <= 1) {		/* likely ? ... what's the point? */
 
@@ -483,8 +482,8 @@ ssize_t fi_bgq_inject_generic(struct fid_ep *ep,
 		qpx_memcpy64((void*)inject_desc, (const void*)&bgq_ep->tx.inject.inject_model);
 
 		/* set the destination torus address and fifo map */
-		inject_desc->PacketHeader.NetworkHeader.pt2pt.Destination = bgq_dst_addr.Destination;
-		inject_desc->Torus_FIFO_Map = bgq_dst_addr.fifo_map;
+		inject_desc->PacketHeader.NetworkHeader.pt2pt.Destination = fi_bgq_uid_get_destination(bgq_dst_addr.uid.fi);
+		inject_desc->Torus_FIFO_Map = fi_bgq_addr_get_fifo_map(dest_addr);
 
 		inject_desc->PacketHeader.messageUnitHeader.Packet_Types.Memory_FIFO.Rec_FIFO_Id =
 			fi_bgq_addr_rec_fifo_id(dest_addr);
@@ -512,8 +511,8 @@ ssize_t fi_bgq_inject_generic(struct fid_ep *ep,
 		qpx_memcpy64((void*)send_desc, (const void*)&bgq_ep->tx.send.send_model);
 
 		/* set the destination torus address and fifo map */
-		send_desc->PacketHeader.NetworkHeader.pt2pt.Destination = bgq_dst_addr.Destination;
-		send_desc->Torus_FIFO_Map = (uint64_t) bgq_dst_addr.fifo_map;
+		send_desc->PacketHeader.NetworkHeader.pt2pt.Destination = fi_bgq_uid_get_destination(bgq_dst_addr.uid.fi);
+		send_desc->Torus_FIFO_Map = fi_bgq_addr_get_fifo_map(dest_addr);
 
 		send_desc->PacketHeader.messageUnitHeader.Packet_Types.Memory_FIFO.Rec_FIFO_Id =
 			fi_bgq_addr_rec_fifo_id(dest_addr);
@@ -570,8 +569,7 @@ ssize_t fi_bgq_send_generic_flags(struct fid_ep *ep,
 	if (ret) return ret;
 
 	/* get the destination bgq torus address */
-	union fi_bgq_addr bgq_dst_addr;
-	bgq_dst_addr.fi = dest_addr;
+	const union fi_bgq_addr bgq_dst_addr = {.fi=dest_addr};
 
 	size_t xfer_len = 0;
 	if (is_contiguous) xfer_len = len;
@@ -593,8 +591,8 @@ ssize_t fi_bgq_send_generic_flags(struct fid_ep *ep,
 		qpx_memcpy64((void*)send_desc, (const void *)&bgq_ep->tx.send.send_model);
 
 		/* set the destination torus address and fifo map */
-		send_desc->PacketHeader.NetworkHeader.pt2pt.Destination = bgq_dst_addr.Destination;
-		send_desc->Torus_FIFO_Map = (uint64_t) bgq_dst_addr.fifo_map;
+		send_desc->PacketHeader.NetworkHeader.pt2pt.Destination = fi_bgq_uid_get_destination(bgq_dst_addr.uid.fi);
+		send_desc->Torus_FIFO_Map = fi_bgq_addr_get_fifo_map(dest_addr);
 
 		send_desc->Message_Length = xfer_len;
 
@@ -728,8 +726,8 @@ ssize_t fi_bgq_send_generic_flags(struct fid_ep *ep,
 		qpx_memcpy64((void*)send_desc, (const void *)&bgq_ep->tx.send.rzv_model[is_local]);
 
 		/* set the destination torus address and fifo map */
-		send_desc->PacketHeader.NetworkHeader.pt2pt.Destination = bgq_dst_addr.Destination;
-		send_desc->Torus_FIFO_Map = (uint64_t) bgq_dst_addr.fifo_map;
+		send_desc->PacketHeader.NetworkHeader.pt2pt.Destination = fi_bgq_uid_get_destination(bgq_dst_addr.uid.fi);
+		send_desc->Torus_FIFO_Map = fi_bgq_addr_get_fifo_map(dest_addr);
 
 		send_desc->PacketHeader.messageUnitHeader.Packet_Types.Memory_FIFO.Rec_FIFO_Id =
 			fi_bgq_addr_rec_fifo_id(dest_addr);
@@ -737,14 +735,6 @@ ssize_t fi_bgq_send_generic_flags(struct fid_ep *ep,
 		union fi_bgq_mu_packet_hdr * hdr = (union fi_bgq_mu_packet_hdr *) &send_desc->PacketHeader;
 
 		if (is_msg) {
-			/* 'non-tagged' rendezvous send must also pack the fifo
-			 * map bits into the origin destination in case the transfer
-			 * is processed as a multi-receive at the target */
-			const uint32_t origin = (uint32_t) hdr->rendezvous.origin_raw;
-			const uint32_t fifo_map = (uint32_t) bgq_dst_addr.fifo_map;
-
-			hdr->rendezvous.origin_raw = (((fifo_map >> 5) & 0x0000003Eu) | (fifo_map & 0x0000F800u)) | origin;
-
 			fi_bgq_mu_packet_type_set(hdr, FI_BGQ_MU_PACKET_TYPE_RENDEZVOUS);
 		}
 
@@ -756,6 +746,7 @@ ssize_t fi_bgq_send_generic_flags(struct fid_ep *ep,
 		send_desc->Pa_Payload = payload_paddr;
 
 		payload->rendezvous.immediate_data = data;
+		payload->rendezvous.fifo_map = fi_bgq_addr_get_fifo_map(bgq_dst_addr.fi);
 
 		if (is_contiguous) {
 			/* only send one mu iov */

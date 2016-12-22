@@ -248,7 +248,8 @@ void inject_eager_completion (struct fi_bgq_ep * bgq_ep,
 	qpx_memcpy64((void*)desc, (const void*)&bgq_ep->rx.poll.ack_model[is_local]);
 
 	MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, cntr_paddr);
-	desc->PacketHeader.NetworkHeader.pt2pt.Destination = pkt->hdr.completion.origin;
+	desc->PacketHeader.NetworkHeader.pt2pt.Destination = fi_bgq_uid_get_destination(pkt->hdr.completion.origin.uid.fi);
+	desc->Torus_FIFO_Map = pkt->hdr.completion.origin.fifo_map;
 
 	MUSPI_InjFifoAdvanceDesc(bgq_ep->rx.poll.injfifo.muspi_injfifo);
 
@@ -524,7 +525,8 @@ void complete_receive_operation (struct fi_bgq_ep * bgq_ep,
 			dst_paddr = (uint64_t)mr.BasePa + ((uint64_t)recv_buf - (uint64_t)mr.BaseVa);
 		}
 
-		const uint64_t is_local = pkt->hdr.rendezvous.is_local;
+		const uint64_t fifo_map = fi_bgq_mu_packet_get_fifo_map(pkt);
+		const uint64_t is_local = (fifo_map & (MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 | MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1)) != 0;
 
 		/*
 		 * inject a "remote get" descriptor - the payload is composed
@@ -582,10 +584,7 @@ void complete_receive_operation (struct fi_bgq_ep * bgq_ep,
 			rget_desc->Message_Length += sizeof(MUHWI_Descriptor_t);
 
 			if (is_multi_receive) {		/* branch should compile out */
-				if (is_local)
-					xfer_desc->Torus_FIFO_Map = MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0;
-				else
-					xfer_desc->Torus_FIFO_Map = fi_bgq_mu_packet_rendezvous_fifomap(pkt);
+				xfer_desc->Torus_FIFO_Map = fifo_map;
 			}
 		}
 
@@ -605,9 +604,8 @@ void complete_receive_operation (struct fi_bgq_ep * bgq_ep,
 			MUHWI_Descriptor_t * ack_desc = ++payload;
 			qpx_memcpy64((void*)ack_desc, (const void*)&bgq_ep->rx.poll.rzv.multi_recv_ack_model);
 
-			const uint64_t torus_fifo_map = is_local ? MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 : fi_bgq_mu_packet_rendezvous_fifomap(pkt);
-			ack_desc->Torus_FIFO_Map = torus_fifo_map;
-			rget_desc->Torus_FIFO_Map = torus_fifo_map;
+			ack_desc->Torus_FIFO_Map = fifo_map;
+			rget_desc->Torus_FIFO_Map = fifo_map;
 			rget_desc->Message_Length += sizeof(MUHWI_Descriptor_t);
 
 			union fi_bgq_mu_packet_hdr * hdr = (union fi_bgq_mu_packet_hdr *) &ack_desc->PacketHeader;
