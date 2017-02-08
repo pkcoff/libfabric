@@ -52,7 +52,7 @@
 #define IS_TAG (0)
 #define IS_MSG (1)
 
-// #define FI_BGQ_TRACE 1
+#define FI_BGQ_TRACE 1
 // #define FI_BGQ_REMOTE_COMPLETION
 
 enum fi_bgq_ep_state {

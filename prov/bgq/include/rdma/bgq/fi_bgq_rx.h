@@ -35,7 +35,7 @@
 #define FI_BGQ_UEPKT_BLOCKSIZE (1024)
 #define PROCESS_RFIFO_MAX 64
 
-// #define FI_BGQ_TRACE
+#define FI_BGQ_TRACE
 
 /* forward declaration - see: prov/bgq/src/fi_bgq_atomic.c */
 void fi_bgq_rx_atomic_dispatch (void * buf, void * addr, size_t nbytes,

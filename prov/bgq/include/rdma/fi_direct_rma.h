@@ -354,9 +354,13 @@ static inline ssize_t fi_bgq_inject_write_generic(struct fid_ep *ep,
 	memcpy(payload, buf, len);
 
 	if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_BASIC) {		/* branch will compile out */
+#ifdef FI_BGQ_TRACE
+        fprintf(stderr,"fi_bgq_inject_write_generic - virtual addr is 0x%016lx physical addr is 0x%016lx key is %lu  \n",addr,(addr-key),key);
+#endif
+exit(0);
 
 		/* the 'key' is the paddr of the remote memory region */
-		MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, key+addr);
+		MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, addr-key);
 
 	} else if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {	/* branch will compile out */
 
@@ -414,6 +418,10 @@ static inline void fi_bgq_write_internal (struct fi_bgq_ep * bgq_ep,
 		const uint64_t enable_cntr,
 		const int lock_required)
 {
+
+#ifdef FI_BGQ_TRACE
+        fprintf(stderr,"fi_bgq_write_internal starting\n");
+#endif
 	const uint64_t do_cq = enable_cq && ((tx_op_flags & FI_COMPLETION) == FI_COMPLETION);
 
 	struct fi_bgq_cntr * write_cntr = bgq_ep->write_cntr;
@@ -449,6 +457,10 @@ static inline void fi_bgq_write_internal (struct fi_bgq_ep * bgq_ep,
 
 		if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_BASIC) {		/* branch will compile out */
 
+#ifdef FI_BGQ_TRACE
+        fprintf(stderr,"fi_bgq_write_internal tx_op_flags & FI_INJECT - virtual addr is 0x%016lx physical addr is 0x%016lx key is %lu  \n",addr,(addr-key),key);
+#endif
+exit(0);
 			/* the 'key' is the paddr of the remote memory region */
 			MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, key+addr);
 
@@ -495,6 +507,10 @@ static inline void fi_bgq_write_internal (struct fi_bgq_ep * bgq_ep,
 
 		if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_BASIC) {		/* branch will compile out */
 
+#ifdef FI_BGQ_TRACE
+        fprintf(stderr,"fi_bgq_write_internal - NOT tx_op_flags & FI_INJECT - virtual addr is 0x%016lx physical addr is 0x%016lx key is %lu  \n",addr,(addr-key),key);
+#endif
+exit(0);
 			/* the 'key' is the paddr of the remote memory region */
 			MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, key+addr);
 
@@ -666,10 +682,16 @@ static inline ssize_t fi_bgq_writemsg_generic(struct fid_ep *ep,
 	uint64_t msg_iov_bytes = msg->msg_iov[msg_iov_index].iov_len;
 	uintptr_t msg_iov_vaddr = (uintptr_t)msg->msg_iov[msg_iov_index].iov_base;
 
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"fi_bgq_writemsg_generic msg_iov_bytes is %lu rma_iov_bytes is %lu base vadder is 0x%016lx\n",msg_iov_bytes,rma_iov_bytes,msg_iov_vaddr);
+#endif
 	while (msg_iov_bytes != 0 && rma_iov_bytes != 0) {
 
 		size_t len = (msg_iov_bytes <= rma_iov_bytes) ? msg_iov_bytes : rma_iov_bytes;
 
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"fi_bgq_writemsg_generic calling fi_bgq_write_internal with msg_iov_vaddr 0x%016lx and len %lu\n",msg_iov_vaddr,len);
+#endif
 		fi_bgq_write_internal(bgq_ep, (void*)msg_iov_vaddr, len, bgq_dst_addr,
 			rma_iov_addr, rma_iov_key, NULL, 0, 0, 0, lock_required);
 

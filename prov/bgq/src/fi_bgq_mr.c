@@ -89,6 +89,22 @@ static int fi_bgq_mr_reg(struct fid *fid, const void *buf,
 		struct fid_mr **mr, void *context)
 {
 	int ret;
+
+	if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_BASIC) {
+
+		uint64_t paddr = 0;
+
+		fi_bgq_cnk_vaddr2paddr(buf,1,&paddr);
+		struct fid_mr *mr_basic_fid;
+		mr_basic_fid = calloc(1, sizeof(*mr_basic_fid));
+		mr_basic_fid->key = (buf - paddr);
+		*mr = mr_basic_fid;
+#ifdef FI_BGQ_TRACE
+	fprintf(stderr,"fi_bgq_mr_reg - virtual addr is 0x%016lx physical addr is 0x%016lx delta is %lu  \n",(uint64_t)buf,paddr,(uint64_t)((uint64_t)buf - paddr));
+
+#endif
+	}
+	else if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {
 	struct fi_bgq_mr *bgq_mr;
 	struct fi_bgq_domain *bgq_domain;
 
@@ -138,6 +154,7 @@ static int fi_bgq_mr_reg(struct fid *fid, const void *buf,
 	fi_bgq_ref_inc(&bgq_domain->ref_cnt, "domain");
 
 	*mr = &bgq_mr->mr_fid;
+	}
 
 	return 0;
 }
