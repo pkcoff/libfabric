@@ -312,6 +312,9 @@ static inline ssize_t fi_bgq_inject_write_generic(struct fid_ep *ep,
 		uint64_t addr, uint64_t key,
 		int lock_required)
 {
+#ifdef FI_BGQ_TRACE
+        fprintf(stderr,"fi_bgq_inject_write_generic starting\n");
+#endif
 	int			ret;
 	struct fi_bgq_ep	*bgq_ep;
 
@@ -357,7 +360,6 @@ static inline ssize_t fi_bgq_inject_write_generic(struct fid_ep *ep,
 #ifdef FI_BGQ_TRACE
         fprintf(stderr,"fi_bgq_inject_write_generic - virtual addr is 0x%016lx physical addr is 0x%016lx key is %lu  \n",addr,(addr-key),key);
 #endif
-exit(0);
 
 		/* the 'key' is the paddr of the remote memory region */
 		MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, addr-key);
@@ -460,9 +462,8 @@ static inline void fi_bgq_write_internal (struct fi_bgq_ep * bgq_ep,
 #ifdef FI_BGQ_TRACE
         fprintf(stderr,"fi_bgq_write_internal tx_op_flags & FI_INJECT - virtual addr is 0x%016lx physical addr is 0x%016lx key is %lu  \n",addr,(addr-key),key);
 #endif
-exit(0);
 			/* the 'key' is the paddr of the remote memory region */
-			MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, key+addr);
+			MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, addr-key);
 
 		} else if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {	/* branch will compile out */
 
@@ -510,9 +511,8 @@ exit(0);
 #ifdef FI_BGQ_TRACE
         fprintf(stderr,"fi_bgq_write_internal - NOT tx_op_flags & FI_INJECT - virtual addr is 0x%016lx physical addr is 0x%016lx key is %lu  \n",addr,(addr-key),key);
 #endif
-exit(0);
 			/* the 'key' is the paddr of the remote memory region */
-			MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, key+addr);
+			MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, addr-key);
 
 		} else if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {	/* branch will compile out */
 
@@ -562,8 +562,22 @@ exit(0);
 				desc->Pa_Payload = src_paddr;
 
 				union fi_bgq_mu_packet_hdr * hdr = (union fi_bgq_mu_packet_hdr *) &desc->PacketHeader;
-				hdr->rma.offset = addr;
-				hdr->rma.nbytes = xfer_bytes;
+				if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_BASIC) {
+#ifdef FI_BGQ_TRACE
+        fprintf(stderr,"fi_bgq_write_internal for multiple packets - NOT tx_op_flags & FI_INJECT - virtual addr is 0x%016lx physical addr is 0x%016lx key is %lu  \n",addr,(addr-key),key);
+#endif
+					/* the 'key' is the paddr of the remote memory region */
+					MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, addr-key);
+
+				}
+				else if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {
+					hdr->rma.offset = addr;
+					hdr->rma.nbytes = xfer_bytes;
+				}
+				else {
+                		        assert(0);
+		                }
+
 
 				MUSPI_InjFifoAdvanceDesc(bgq_ep->tx.injfifo.muspi_injfifo);
 
