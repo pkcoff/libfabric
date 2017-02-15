@@ -75,6 +75,10 @@ static inline void fi_bgq_readv_internal (struct fi_bgq_ep * bgq_ep,
 		const uint64_t enable_cntr,
 		const int lock_required)
 {
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"fi_bgq_readv_internal starting - niov is %ld do_cntr is %d\n",niov,(enable_cntr && ( bgq_ep->write_cntr != 0)));
+fflush(stderr);
+#endif
 	assert(niov <= 8);
 
 	const uint64_t do_cq = enable_cq && (tx_op_flags & FI_COMPLETION);
@@ -83,8 +87,8 @@ static inline void fi_bgq_readv_internal (struct fi_bgq_ep * bgq_ep,
 	const uint64_t do_cntr = enable_cntr && (write_cntr != 0);
 
 	MUHWI_Descriptor_t * model =		/* branch will compile out */
-		(FI_BGQ_FABRIC_DIRECT_MR == FI_MR_BASIC) ?
-			&bgq_ep->tx.read.direct.rget_model :
+//		(FI_BGQ_FABRIC_DIRECT_MR == FI_MR_BASIC) ?
+//			&bgq_ep->tx.read.direct.rget_model :
 			&bgq_ep->tx.read.emulation.mfifo_model;
 
 	const uint64_t fifo_map = fi_bgq_addr_get_fifo_map(bgq_target_addr->fi);
@@ -106,9 +110,9 @@ static inline void fi_bgq_readv_internal (struct fi_bgq_ep * bgq_ep,
 			desc, &desc->Pa_Payload);
 	desc->Message_Length = (niov << BGQ_MU_DESCRIPTOR_SIZE_IN_POWER_OF_2);
 
-	assert(FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE);
+//	assert(FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE);
 
-	if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {	/* branch will compile out */
+//	if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {	/* branch will compile out */
 
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Memory_FIFO.Rec_FIFO_Id =
 			fi_bgq_addr_rec_fifo_id(bgq_target_addr->fi);
@@ -141,10 +145,13 @@ static inline void fi_bgq_readv_internal (struct fi_bgq_ep * bgq_ep,
 			//fi_dput_desc[i].rma.key_msb = 0;
 			fi_dput_desc[i].rma.key_lsb = key[i];
 		}
-	}
+//	}
 
 	if (do_cntr && niov < 8) {	/* likely */
-
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"fi_bgq_readv_internal do_cntr && niov < 8\n");
+fflush(stderr);
+#endif
 		/* add the counter update direct-put descriptor to the
 		 * tail of the rget/mfifo payload */
 
@@ -157,13 +164,17 @@ static inline void fi_bgq_readv_internal (struct fi_bgq_ep * bgq_ep,
 			MUSPI_GetAtomicAddress(write_cntr->std.paddr, MUHWI_ATOMIC_OPCODE_STORE_ADD));
 
 		desc->Message_Length += sizeof(MUHWI_Descriptor_t);
-		if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {	/* branch will compile out */
+//		if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {	/* branch will compile out */
 			union fi_bgq_mu_packet_hdr * hdr = (union fi_bgq_mu_packet_hdr *) &desc->PacketHeader;
 			hdr->rma.ndesc += 1;
-		}
+//		}
 
 		if (!do_cq) {	/* likely */
 
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"fi_bgq_readv_internal do_cntr && niov < 8 AND (!do_cq)\n");
+fflush(stderr);
+#endif
 			MUSPI_InjFifoAdvanceDesc(bgq_ep->tx.injfifo.muspi_injfifo);
 
 		} else 	if (niov < 7) {
@@ -697,7 +708,8 @@ static inline ssize_t fi_bgq_writemsg_generic(struct fid_ep *ep,
 	uintptr_t msg_iov_vaddr = (uintptr_t)msg->msg_iov[msg_iov_index].iov_base;
 
 #ifdef FI_BGQ_TRACE
-fprintf(stderr,"fi_bgq_writemsg_generic msg_iov_bytes is %lu rma_iov_bytes is %lu base vadder is 0x%016lx\n",msg_iov_bytes,rma_iov_bytes,msg_iov_vaddr);
+fprintf(stderr,"fi_bgq_writemsg_generic msg_iov_bytes is %lu rma_iov_bytes is %lu base vadder is 0x%016lx lock_required is %d\n",msg_iov_bytes,rma_iov_bytes,msg_iov_vaddr,lock_required);
+fflush(stderr);
 #endif
 	while (msg_iov_bytes != 0 && rma_iov_bytes != 0) {
 
@@ -705,6 +717,7 @@ fprintf(stderr,"fi_bgq_writemsg_generic msg_iov_bytes is %lu rma_iov_bytes is %l
 
 #ifdef FI_BGQ_TRACE
 fprintf(stderr,"fi_bgq_writemsg_generic calling fi_bgq_write_internal with msg_iov_vaddr 0x%016lx and len %lu\n",msg_iov_vaddr,len);
+fflush(stderr);
 #endif
 		fi_bgq_write_internal(bgq_ep, (void*)msg_iov_vaddr, len, bgq_dst_addr,
 			rma_iov_addr, rma_iov_key, NULL, 0, 0, 0, lock_required);
@@ -729,6 +742,10 @@ fprintf(stderr,"fi_bgq_writemsg_generic calling fi_bgq_write_internal with msg_i
 		}
 	}
 
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"fi_bgq_writemsg_generic calling fi_bgq_write_fence\n");
+fflush(stderr);
+#endif
 	fi_bgq_write_fence(bgq_ep, flags, bgq_dst_addr,
 		(union fi_bgq_context *)msg->context,
 		lock_required);

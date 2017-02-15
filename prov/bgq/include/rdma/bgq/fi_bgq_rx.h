@@ -178,6 +178,10 @@ void complete_rma_operation (struct fi_bgq_ep * bgq_ep, struct fi_bgq_mu_packet 
 	const uint64_t ndesc = pkt->hdr.rma.ndesc;
 	MUHWI_Descriptor_t * payload = (MUHWI_Descriptor_t *) &pkt->payload;
 
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"complete_rma_operation starting - nbytes is %lu ndesc is %lu\n",nbytes,ndesc);
+fflush(stderr);
+#endif
 	if (nbytes > 0) {	/* only for direct-put emulation */
 
 		uintptr_t vaddr = (uintptr_t)fi_bgq_domain_bat_read_vaddr(bat, pkt->hdr.rma.key);
@@ -187,17 +191,26 @@ void complete_rma_operation (struct fi_bgq_ep * bgq_ep, struct fi_bgq_mu_packet 
 		memcpy((void*)vaddr, (void *)((uintptr_t)payload + payload_offset), nbytes);
 	}
 
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"complete_rma_operation before loop\n");
+fflush(stderr);
+#endif
 	/* The 'convert_batid_to_paddr' function assumes that the base+offset is
 	 * a virtual address, which then must be converted into a physical
 	 * address in FI_MR_SCALABLE mode.
 	 *
 	 * TODO - FI_MR_BASIC will use the base+offset as a physical addess
 	 */
-	assert(bgq_ep->domain->mr_mode == FI_MR_SCALABLE);	// rx->poll.domain->mr_mode
+//	assert(bgq_ep->domain->mr_mode == FI_MR_SCALABLE);
+
 
 	unsigned i;
 	for (i = 0; i < ndesc; ++i) {
 
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"complete_rma_operation loop iter %d\n",i);
+fflush(stderr);
+#endif
 		/*
 		 * busy-wait until a fifo slot is available ..
 		 */
@@ -206,8 +219,16 @@ void complete_rma_operation (struct fi_bgq_ep * bgq_ep, struct fi_bgq_mu_packet 
 
 		qpx_memcpy64((void*)desc, (const void*)&payload[i]);
 
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"complete_rma_operation after busy-wait\n");
+fflush(stderr);
+#endif
 		if (desc->PacketHeader.NetworkHeader.pt2pt.Byte8.Packet_Type == 2) {	/* rget descriptor */
 
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"complete_rma_operation - processing rgat desc %d\n",i);
+fflush(stderr);
+#endif
 			/* locate the payload lookaside slot */
 			uint64_t payload_paddr = 0;
 			void * payload_vaddr =
@@ -229,11 +250,19 @@ void complete_rma_operation (struct fi_bgq_ep * bgq_ep, struct fi_bgq_mu_packet 
 
 		} else {
 
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"complete_rma_operation - processing fifo desc %d\n",i);
+fflush(stderr);
+#endif
 			convert_batid_to_paddr((union fi_bgq_mu_descriptor *)desc, bat);
 
 		}
 		MUSPI_InjFifoAdvanceDesc(bgq_ep->rx.poll.injfifo.muspi_injfifo);
 	}
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"complete_rma_operation ending\n");
+fflush(stderr);
+#endif
 }
 
 
