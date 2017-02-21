@@ -110,42 +110,37 @@ fflush(stderr);
 			desc, &desc->Pa_Payload);
 	desc->Message_Length = (niov << BGQ_MU_DESCRIPTOR_SIZE_IN_POWER_OF_2);
 
-//	assert(FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE);
 
-//	if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {	/* branch will compile out */
+	desc->PacketHeader.messageUnitHeader.Packet_Types.Memory_FIFO.Rec_FIFO_Id =
+	fi_bgq_addr_rec_fifo_id(bgq_target_addr->fi);
 
-		desc->PacketHeader.messageUnitHeader.Packet_Types.Memory_FIFO.Rec_FIFO_Id =
-			fi_bgq_addr_rec_fifo_id(bgq_target_addr->fi);
+	union fi_bgq_mu_packet_hdr * hdr = (union fi_bgq_mu_packet_hdr *) &desc->PacketHeader;
+	hdr->rma.ndesc = niov;
 
-		union fi_bgq_mu_packet_hdr * hdr = (union fi_bgq_mu_packet_hdr *) &desc->PacketHeader;
-		hdr->rma.ndesc = niov;
+	/* TODO - how to specify multiple remote injection fifos? */
 
-		/* TODO - how to specify multiple remote injection fifos? */
+	union fi_bgq_mu_descriptor * fi_dput_desc = (union fi_bgq_mu_descriptor *) dput_desc;
 
-		union fi_bgq_mu_descriptor * fi_dput_desc = (union fi_bgq_mu_descriptor *) dput_desc;
+	unsigned i;
+	for (i = 0; i < niov; ++i) {	/* on fence this loop will compile out (niov is 0) */
 
-		unsigned i;
-		for (i = 0; i < niov; ++i) {	/* on fence this loop will compile out (niov is 0) */
+		qpx_memcpy64((void*)&dput_desc[i],
+			(const void*)&bgq_ep->tx.read.emulation.dput_model);
 
-			qpx_memcpy64((void*)&dput_desc[i],
-				(const void*)&bgq_ep->tx.read.emulation.dput_model);
+		dput_desc[i].Torus_FIFO_Map = fifo_map;
+		dput_desc[i].Message_Length = iov[i].iov_len;
+		dput_desc[i].Pa_Payload = addr[i];
 
-			dput_desc[i].Torus_FIFO_Map = fifo_map;
-			dput_desc[i].Message_Length = iov[i].iov_len;
-			dput_desc[i].Pa_Payload = addr[i];
+		/* determine the physical address of the destination data location */
+		uint64_t iov_base_paddr = 0;
+		uint32_t cnk_rc __attribute__ ((unused));
+		cnk_rc = fi_bgq_cnk_vaddr2paddr(iov[i].iov_base, iov[i].iov_len, &iov_base_paddr);
+		assert(cnk_rc==0);
+		MUSPI_SetRecPayloadBaseAddressInfo(&dput_desc[i], FI_BGQ_MU_BAT_ID_GLOBAL, iov_base_paddr);
 
-			/* determine the physical address of the destination data location */
-			uint64_t iov_base_paddr = 0;
-			uint32_t cnk_rc __attribute__ ((unused));
-			cnk_rc = fi_bgq_cnk_vaddr2paddr(iov[i].iov_base, iov[i].iov_len, &iov_base_paddr);
-			assert(cnk_rc==0);
-			MUSPI_SetRecPayloadBaseAddressInfo(&dput_desc[i], FI_BGQ_MU_BAT_ID_GLOBAL, iov_base_paddr);
-
-			assert((key[i] & 0xFFFF000000000000ul) == 0);	/* TODO - change this when key size > 48b */
-			//fi_dput_desc[i].rma.key_msb = 0;
-			fi_dput_desc[i].rma.key_lsb = key[i];
-		}
-//	}
+		assert((key[i] & 0xFFFF000000000000ul) == 0);	/* TODO - change this when key size > 48b */
+		fi_dput_desc[i].rma.key_lsb = key[i];
+	}
 
 	if (do_cntr && niov < 8) {	/* likely */
 #ifdef FI_BGQ_TRACE
@@ -207,10 +202,10 @@ fflush(stderr);
 				FI_BGQ_MU_BAT_ID_GLOBAL, byte_counter_paddr);
 
 			desc->Message_Length += sizeof(MUHWI_Descriptor_t);
-			if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {	/* branch will compile out */
+//			if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {	/* branch will compile out */
 				union fi_bgq_mu_packet_hdr * hdr = (union fi_bgq_mu_packet_hdr *) &desc->PacketHeader;
 				hdr->rma.ndesc += 1;
-			}
+//			}
 
 			MUSPI_InjFifoAdvanceDesc(bgq_ep->tx.injfifo.muspi_injfifo);
 
@@ -793,6 +788,12 @@ static inline ssize_t fi_bgq_readv_generic (struct fid_ep *ep,
 		fi_addr_t src_addr, uint64_t addr, uint64_t key, void *context,
 		int lock_required)
 {
+
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"fi_bgq_readv_generic count is %lu addr is 0x%016lx key is 0x%016lx\n",count,addr,key);
+fflush(stderr);
+#endif
+
 	int			ret;
 	struct fi_bgq_ep	*bgq_ep;
 
@@ -839,6 +840,10 @@ static inline ssize_t fi_bgq_readmsg_generic(struct fid_ep *ep,
 		const struct fi_msg_rma *msg, uint64_t flags,
 		int lock_required)
 {
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"fi_bgq_readmsg_generic starting\n");
+fflush(stderr);
+#endif
 	int			ret;
 	struct fi_bgq_ep	*bgq_ep;
 

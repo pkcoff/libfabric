@@ -35,7 +35,7 @@
 #define FI_BGQ_UEPKT_BLOCKSIZE (1024)
 #define PROCESS_RFIFO_MAX 64
 
-#define FI_BGQ_TRACE
+// #define FI_BGQ_TRACE
 
 /* forward declaration - see: prov/bgq/src/fi_bgq_atomic.c */
 void fi_bgq_rx_atomic_dispatch (void * buf, void * addr, size_t nbytes,
@@ -149,11 +149,23 @@ void convert_batid_to_paddr (union fi_bgq_mu_descriptor * fi_mu_desc, struct fi_
 		const uint64_t key_msb = fi_mu_desc->rma.key_msb;
 		const uint64_t key_lsb = fi_mu_desc->rma.key_lsb;
 		const uint64_t key = (key_msb << 48) | key_lsb;
-		const uintptr_t base = (uintptr_t) fi_bgq_domain_bat_read_vaddr(bat, key);
+		uint64_t paddr = 0;
 		const uint64_t offset = fi_mu_desc->rma.dput.put_offset;
 
-		uint64_t paddr = 0;
-		fi_bgq_cnk_vaddr2paddr((const void *)(base+offset), 1, &paddr);
+		if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_BASIC) {
+			paddr = offset-key;
+		} else if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {
+
+			const uintptr_t base = (uintptr_t) fi_bgq_domain_bat_read_vaddr(bat, key);
+			fi_bgq_cnk_vaddr2paddr((const void *)(base+offset), 1, &paddr);
+		}
+		else {
+			assert(0);
+		}
+
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"convert_batid_to_paddr rma_update_type == FI_BGQ_MU_DESCRIPTOR_UPDATE_BAT_TYPE_DST paddr is 0x%016lx\n",paddr);
+#endif
 		MUSPI_SetRecPayloadBaseAddressInfo((MUHWI_Descriptor_t *)fi_mu_desc,
 			FI_BGQ_MU_BAT_ID_GLOBAL, paddr);
 
@@ -161,10 +173,25 @@ void convert_batid_to_paddr (union fi_bgq_mu_descriptor * fi_mu_desc, struct fi_
 		const uint64_t key_msb = fi_mu_desc->rma.key_msb;
 		const uint64_t key_lsb = fi_mu_desc->rma.key_lsb;
 		const uint64_t key = (key_msb << 48) | key_lsb;
-		const uintptr_t base = (uintptr_t) fi_bgq_domain_bat_read_vaddr(bat, key);
 		const uint64_t offset = fi_mu_desc->rma.Pa_Payload;
+		if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_BASIC) {
+			fi_mu_desc->rma.Pa_Payload = offset-key;
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"convert_batid_to_paddr rma_update_type == FI_BGQ_MU_DESCRIPTOR_UPDATE_BAT_TYPE_SRC for FI_MR_BASIC fi_mu_desc->rma.Pa_Payload set to paddr 0x%016lx\n",(offset-key));
+fflush(stderr);
+#endif
+		} else if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {
 
-		fi_bgq_cnk_vaddr2paddr((const void *)(base+offset), 1, &fi_mu_desc->rma.Pa_Payload);
+			const uintptr_t base = (uintptr_t) fi_bgq_domain_bat_read_vaddr(bat, key);
+			fi_bgq_cnk_vaddr2paddr((const void *)(base+offset), 1, &fi_mu_desc->rma.Pa_Payload);
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"convert_batid_to_paddr rma_update_type == FI_BGQ_MU_DESCRIPTOR_UPDATE_BAT_TYPE_SRC for FI_MR_SCALABLE fi_mu_desc->rma.Pa_Payload set to paddr 0x%016lx\n",fi_mu_desc->rma.Pa_Payload);
+fflush(stderr);
+#endif
+		}
+		else {
+			assert(0);
+		}
 	} else {
 		/* no update requested */
 	}
@@ -183,12 +210,27 @@ fprintf(stderr,"complete_rma_operation starting - nbytes is %lu ndesc is %lu\n",
 fflush(stderr);
 #endif
 	if (nbytes > 0) {	/* only for direct-put emulation */
-
-		uintptr_t vaddr = (uintptr_t)fi_bgq_domain_bat_read_vaddr(bat, pkt->hdr.rma.key);
-		vaddr += pkt->hdr.rma.offset;
-
 		const uint64_t payload_offset = ndesc << BGQ_MU_DESCRIPTOR_SIZE_IN_POWER_OF_2;
-		memcpy((void*)vaddr, (void *)((uintptr_t)payload + payload_offset), nbytes);
+		if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_BASIC) {
+			uintptr_t vaddr = (uintptr_t) pkt->hdr.rma.offset;
+			memcpy((void*)vaddr, (void *)((uintptr_t)payload + payload_offset), nbytes);
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"direct-put emulation memcpy vaddr is 0x%016lx nbytes is %lu\n",vaddr,nbytes);
+#endif
+
+		} else if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {
+
+			uintptr_t vaddr = (uintptr_t)fi_bgq_domain_bat_read_vaddr(bat, pkt->hdr.rma.key);
+			vaddr += pkt->hdr.rma.offset;
+#ifdef FI_BGQ_TRACE
+fprintf(stderr,"direct-put emulation memcpy vaddr is 0x%016lx nbytes is %lu\n",vaddr,nbytes);
+#endif
+
+			memcpy((void*)vaddr, (void *)((uintptr_t)payload + payload_offset), nbytes);
+		}
+		else {
+			assert(0);
+		}
 	}
 
 #ifdef FI_BGQ_TRACE
@@ -199,7 +241,8 @@ fflush(stderr);
 	 * a virtual address, which then must be converted into a physical
 	 * address in FI_MR_SCALABLE mode.
 	 *
-	 * TODO - FI_MR_BASIC will use the base+offset as a physical addess
+	 * for FI_MR_BASIC convert_batid_to_paddr has been modified to use the
+	 * physical address instead
 	 */
 //	assert(bgq_ep->domain->mr_mode == FI_MR_SCALABLE);
 

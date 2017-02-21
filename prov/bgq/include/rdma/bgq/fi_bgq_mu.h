@@ -56,7 +56,7 @@
 
 #define FI_BGQ_MUHWI_DESTINATION_MASK (0x073CF3C1ul)
 
-#define FI_BGQ_TRACE 1
+// #define FI_BGQ_TRACE 1
 
 
 typedef uint32_t		fi_bgq_uid_t;
