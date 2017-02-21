@@ -86,10 +86,7 @@ fflush(stderr);
 	struct fi_bgq_cntr * write_cntr = bgq_ep->write_cntr;
 	const uint64_t do_cntr = enable_cntr && (write_cntr != 0);
 
-	MUHWI_Descriptor_t * model =		/* branch will compile out */
-//		(FI_BGQ_FABRIC_DIRECT_MR == FI_MR_BASIC) ?
-//			&bgq_ep->tx.read.direct.rget_model :
-			&bgq_ep->tx.read.emulation.mfifo_model;
+	MUHWI_Descriptor_t * model = &bgq_ep->tx.read.emulation.mfifo_model;
 
 	const uint64_t fifo_map = fi_bgq_addr_get_fifo_map(bgq_target_addr->fi);
 
@@ -144,7 +141,7 @@ fflush(stderr);
 
 	if (do_cntr && niov < 8) {	/* likely */
 #ifdef FI_BGQ_TRACE
-fprintf(stderr,"fi_bgq_readv_internal do_cntr && niov < 8\n");
+fprintf(stderr,"fi_bgq_readv_internal do_cntr && niov %d < 8\n",niov);
 fflush(stderr);
 #endif
 		/* add the counter update direct-put descriptor to the
@@ -159,10 +156,8 @@ fflush(stderr);
 			MUSPI_GetAtomicAddress(write_cntr->std.paddr, MUHWI_ATOMIC_OPCODE_STORE_ADD));
 
 		desc->Message_Length += sizeof(MUHWI_Descriptor_t);
-//		if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {	/* branch will compile out */
-			union fi_bgq_mu_packet_hdr * hdr = (union fi_bgq_mu_packet_hdr *) &desc->PacketHeader;
-			hdr->rma.ndesc += 1;
-//		}
+		union fi_bgq_mu_packet_hdr * hdr = (union fi_bgq_mu_packet_hdr *) &desc->PacketHeader;
+		hdr->rma.ndesc += 1;
 
 		if (!do_cq) {	/* likely */
 
@@ -202,10 +197,8 @@ fflush(stderr);
 				FI_BGQ_MU_BAT_ID_GLOBAL, byte_counter_paddr);
 
 			desc->Message_Length += sizeof(MUHWI_Descriptor_t);
-//			if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {	/* branch will compile out */
-				union fi_bgq_mu_packet_hdr * hdr = (union fi_bgq_mu_packet_hdr *) &desc->PacketHeader;
-				hdr->rma.ndesc += 1;
-//			}
+			union fi_bgq_mu_packet_hdr * hdr = (union fi_bgq_mu_packet_hdr *) &desc->PacketHeader;
+			hdr->rma.ndesc += 1;
 
 			MUSPI_InjFifoAdvanceDesc(bgq_ep->tx.injfifo.muspi_injfifo);
 
@@ -277,10 +270,8 @@ fflush(stderr);
 			FI_BGQ_MU_BAT_ID_GLOBAL, byte_counter_paddr);
 
 		desc->Message_Length += sizeof(MUHWI_Descriptor_t);
-		if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {	/* branch will compile out */
-			union fi_bgq_mu_packet_hdr * hdr = (union fi_bgq_mu_packet_hdr *) &desc->PacketHeader;
-			hdr->rma.ndesc += 1;
-		}
+		union fi_bgq_mu_packet_hdr * hdr = (union fi_bgq_mu_packet_hdr *) &desc->PacketHeader;
+		hdr->rma.ndesc += 1;
 
 		MUSPI_InjFifoAdvanceDesc(bgq_ep->tx.injfifo.muspi_injfifo);
 

@@ -90,33 +90,6 @@ static int fi_bgq_mr_reg(struct fid *fid, const void *buf,
 {
 	int ret;
 
-fprintf(stderr,"fi_bgq_mr_reg starting\n");
-fflush(stderr);
-
-/*
-	if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_BASIC) {
-fprintf(stderr,"fi_bgq_mr_reg FI_BGQ_FABRIC_DIRECT_MR == FI_MR_BASIC\n");
-fflush(stderr);
-		uint64_t paddr = 0;
-
-		fi_bgq_cnk_vaddr2paddr(buf,1,&paddr);
-		struct fid_mr *mr_basic_fid;
-		mr_basic_fid = calloc(1, sizeof(*mr_basic_fid));
-		mr_basic_fid->fid.fclass       = FI_CLASS_MR;
-		mr_basic_fid->fid.context      = context;
-fprintf(stderr,"fi_bgq_mr_reg FI_BGQ_FABRIC_DIRECT_MR =basic settting ops\n");
-fflush(stderr);
-		mr_basic_fid->fid.ops          = &fi_bgq_fi_ops;
-		mr_basic_fid->key =((uint64_t)buf - paddr);
-		*mr = mr_basic_fid;
-#ifdef FI_BGQ_TRACE
-	fprintf(stderr,"fi_bgq_mr_reg - virtual addr is 0x%016lx physical addr is 0x%016lx delta is %lu  \n",(uint64_t)buf,paddr,(uint64_t)((uint64_t)buf - paddr));
-fflush(stderr);
-
-#endif
-	}
-	else if (FI_BGQ_FABRIC_DIRECT_MR == FI_MR_SCALABLE) {
-*/
 	struct fi_bgq_mr *bgq_mr;
 	struct fi_bgq_domain *bgq_domain;
 
