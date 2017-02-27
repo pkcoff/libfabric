@@ -93,6 +93,9 @@ int fi_bgq_set_default_info()
 		.mem_tag_format		= FI_BGQ_MEM_TAG_FORMAT,
 		.tx_ctx_cnt		= tx_ctx_cnt,
 		.rx_ctx_cnt		= rx_ctx_cnt,
+
+		.auth_key		= NULL,
+		.auth_keylen		= 0,
 	};
 
 	*fi->domain_attr = (struct fi_domain_attr) {
@@ -114,7 +117,10 @@ int fi_bgq_set_default_info()
 		.max_ep_tx_ctx	= ((BGQ_MU_NUM_INJ_FIFO_GROUPS-1) * BGQ_MU_NUM_INJ_FIFOS_PER_GROUP) / ppn / 2,
 		.max_ep_rx_ctx	= ((BGQ_MU_NUM_REC_FIFO_GROUPS-1) * BGQ_MU_NUM_REC_FIFOS_PER_GROUP) / ppn,
 		.max_ep_stx_ctx	= ((BGQ_MU_NUM_INJ_FIFO_GROUPS-1) * BGQ_MU_NUM_INJ_FIFOS_PER_GROUP) / ppn / 2,
-		.max_ep_srx_ctx	= 0
+		.max_ep_srx_ctx	= 0,
+
+		.auth_key	= NULL,
+		.auth_keylen	= 0
 	};
 
 	*fi->fabric_attr = (struct fi_fabric_attr) {

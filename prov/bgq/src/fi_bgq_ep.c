@@ -1807,6 +1807,8 @@ int fi_bgq_alloc_default_ep_attr(struct fi_ep_attr **ep_attr)
 	attr->mem_tag_format 	= FI_BGQ_MEM_TAG_FORMAT;
 	attr->tx_ctx_cnt	= tx_ctx_cnt;
 	attr->rx_ctx_cnt	= rx_ctx_cnt;
+	attr->auth_keylen	= 0;
+	attr->auth_key		= NULL;
 
 	*ep_attr = attr;
 
@@ -1940,6 +1942,11 @@ int fi_bgq_endpoint_rx_tx (struct fid_domain *dom, struct fi_info *info,
 
 	bgq_ep->rx.total_buffered_recv = info->rx_attr ?
 			info->rx_attr->total_buffered_recv : 0;
+
+	if ((info->ep_attr->auth_keylen != 0) || (info->ep_attr->auth_key != NULL)) {
+		FI_LOG(fi_bgq_global.prov, FI_LOG_DEBUG, FI_LOG_EP_DATA,
+				"endpoint authorization key is not supported");
+	}
 
 	bgq_domain = container_of(dom, struct fi_bgq_domain, domain_fid);
 	bgq_ep->domain = bgq_domain;
