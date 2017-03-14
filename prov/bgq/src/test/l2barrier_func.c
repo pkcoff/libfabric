@@ -59,7 +59,7 @@ int main (int argc, char *argv[]) {
 	/* race condition! how to determine the number of *active* ranks on the node
 	 * without using Kernel_RanksToCoords() ? */
 	usleep(5000);
-	ppc_msync();
+	fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RO);
 	int participants = l2atomic.shared->counter;
 	fprintf(stderr, "%s:%d participants=%d\n", __FILE__, __LINE__, participants);
 	/* end: race */

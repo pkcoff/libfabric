@@ -134,7 +134,7 @@ void * progress_fn (void *arg) {
 
 
 	progress->active = 1;
-	fi_bgq_msync(FI_BGQ_MSYNC_TYPE_WO);
+	fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_WO);
 
 	while (progress->enabled) {
 
@@ -197,7 +197,7 @@ void * progress_fn (void *arg) {
 
 	/* Deactivate this progress thread and exit */
 	progress->active = 0;
-	fi_bgq_msync(FI_BGQ_MSYNC_TYPE_WO);
+	fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_WO);
 
 	return NULL;
 };
@@ -263,7 +263,7 @@ int fi_bgq_progress_enable (struct fi_bgq_domain *bgq_domain, const unsigned id)
 	assert(id < (64/Kernel_ProcessCount()-1));
 	assert(id < bgq_domain->progress.max_threads);
 
-	fi_bgq_msync(FI_BGQ_MSYNC_TYPE_RO);
+	fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RO);
 	if (bgq_domain->progress.thread[id].enabled) {
 		assert(bgq_domain->progress.thread[id].active);
 		return 0;
@@ -271,7 +271,7 @@ int fi_bgq_progress_enable (struct fi_bgq_domain *bgq_domain, const unsigned id)
 
 	bgq_domain->progress.thread[id].enabled = 1;
 	bgq_domain->progress.thread[id].active = 0;
-	fi_bgq_msync(FI_BGQ_MSYNC_TYPE_WO);
+	fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_WO);
 
 	int rc = 0;
 	rc = pthread_create(&bgq_domain->progress.thread[id].pthread, NULL, progress_fn, (void *)&bgq_domain->progress.thread[id]);
@@ -284,11 +284,11 @@ int fi_bgq_progress_enable (struct fi_bgq_domain *bgq_domain, const unsigned id)
 
 	/* Wait until the progress thread is active */
 	while (0 == bgq_domain->progress.thread[id].active) {
-		fi_bgq_msync(FI_BGQ_MSYNC_TYPE_RO);
+		fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RO);
 	}
 
 	++(bgq_domain->progress.num_threads_active);
-	fi_bgq_msync(FI_BGQ_MSYNC_TYPE_WO);
+	fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_WO);
 
 	return 0;
 }
@@ -298,18 +298,18 @@ int fi_bgq_progress_disable (struct fi_bgq_domain *bgq_domain, const unsigned id
 	assert(id < (64/Kernel_ProcessCount()-1));
 	assert(id < bgq_domain->progress.max_threads);
 
-	fi_bgq_msync(FI_BGQ_MSYNC_TYPE_RO);
+	fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RO);
 	if (0 == bgq_domain->progress.thread[id].enabled) {
 		assert(0 == bgq_domain->progress.thread[id].active);
 		return 0;
 	}
 
 	bgq_domain->progress.thread[id].enabled = 0;
-	fi_bgq_msync(FI_BGQ_MSYNC_TYPE_WO);
+	fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_WO);
 
 	/* Wait until the progress thread is active */
 	while (bgq_domain->progress.thread[id].active) {
-		fi_bgq_msync(FI_BGQ_MSYNC_TYPE_RO);
+		fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RO);
 	}
 
 	int rc __attribute__ ((unused));
@@ -350,14 +350,14 @@ int fi_bgq_progress_ep_enable (struct fi_bgq_progress *thread, struct fi_bgq_ep 
 
 	bgq_ep->async.active = 0;
 	bgq_ep->async.enabled = 1;
-	fi_bgq_msync(FI_BGQ_MSYNC_TYPE_WO);
+	fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_WO);
 
 	uint64_t value_rsh3b = ((uint64_t)bgq_ep) >> 3;
 	if (0 == l2atomic_fifo_produce(&thread->producer, value_rsh3b)) {
 
 		/* Wait until async progress on the endpoint is activated */
 		while (0 == bgq_ep->async.active) {
-			fi_bgq_msync(FI_BGQ_MSYNC_TYPE_RW);
+			fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RW);
 		}
 
 	} else {
@@ -373,11 +373,11 @@ int fi_bgq_progress_ep_enable (struct fi_bgq_progress *thread, struct fi_bgq_ep 
 int fi_bgq_progress_ep_disable (struct fi_bgq_ep *bgq_ep) {
 
 	bgq_ep->async.enabled = 0;
-	fi_bgq_msync(FI_BGQ_MSYNC_TYPE_WO);
+	fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_WO);
 
 	/* Wait until async progress on the endpoint is deactivated */
 	while (0 != bgq_ep->async.active) {
-		fi_bgq_msync(FI_BGQ_MSYNC_TYPE_RO);
+		fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RO);
 	}
 
 	return 0;

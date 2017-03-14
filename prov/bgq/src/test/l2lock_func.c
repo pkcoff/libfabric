@@ -64,7 +64,7 @@ int main (int argc, char *argv[]) {
 
 	/* race condition */
 	usleep(5000);
-	ppc_msync();
+	fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RO);
 	int participants = l2atomic.shared->counter;
 	/* race condition */
 

@@ -34,12 +34,14 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <stdlib.h>
 
+#include "rdma/bgq/fi_bgq_compiler.h"
 #include "rdma/bgq/fi_bgq_hwi.h"
 #include "rdma/bgq/fi_bgq_spi.h"
-
-#include "rdma/bgq/fi_bgq_mu.h"
 #include "rdma/bgq/fi_bgq_node.h"
+
+pthread_t fi_bgq_agent_emulate (void * arg);
 
 uint64_t fi_bgq_node_bat_allocate_id (struct fi_bgq_node * node, struct l2atomic_lock * lock, uint64_t index);
 
@@ -51,9 +53,10 @@ enum bat_variable {
 	BAT_VARIABLE_COUNTER,
 	BAT_VARIABLE_ONE,
 	BAT_VARIABLE_ZERO,
-	BAT_VARIABLE_BLACKHOLE,
+	BAT_VARIABLE_DISCARD,
 	BAT_VARIABLE_NUM
 };
+
 
 struct fi_bgq_node_shared {
 	volatile uint64_t	init_counter;
@@ -71,10 +74,14 @@ struct fi_bgq_node_shared {
 		struct l2atomic_counter_data	allocator_data;
 		struct l2atomic_lock_data	lock_data[FI_BGQ_NODE_LOCK_SIZE];
 	} lock;
-	struct l2atomic_barrier_data		barrier_data;
+	struct l2atomic_barrier_data		barrier_data[FI_BGQ_NODE_BARRIER_KIND_COUNT];
 	uint32_t				leader_tcoord;
 	volatile uint64_t	bat_shadow[FI_BGQ_NODE_BAT_SIZE];
 	volatile uint64_t	bat_cntr[FI_BGQ_NODE_APPLICATION_BAT_SIZE];
+
+	unsigned				agent_count;
+	unsigned				agent_is_emulated;
+	unsigned				agent_is_started;
 };
 
 
@@ -136,7 +143,7 @@ void calculate_local_process_count (uint64_t * local_process_count, uint32_t * l
 	}
 }
 
-int fi_bgq_node_init (struct fi_bgq_node * node) {
+int fi_bgq_node_init_no_barrier (struct fi_bgq_node * node) {
 
 	/* open and create the shared memory segment */
 	int _fd = -1;
@@ -186,7 +193,66 @@ int fi_bgq_node_init (struct fi_bgq_node * node) {
 		shared->leader_tcoord = (uint32_t)-1;
 		calculate_local_process_count(&local_process_count, &shared->leader_tcoord);
 
-		l2atomic_barrier_initialize(&node->barrier, &shared->barrier_data, local_process_count);
+		l2atomic_barrier_initialize(&node->barrier[FI_BGQ_NODE_BARRIER_KIND_USER],
+			&shared->barrier_data[FI_BGQ_NODE_BARRIER_KIND_USER],
+			local_process_count);
+
+
+		shared->agent_count = 0;
+		shared->agent_is_emulated = 0;
+		shared->agent_is_started = 0;
+		{
+			/*
+			 * See -> https://wiki.alcf.anl.gov/parts/index.php/Blue_Gene/Q#17th_Core_App_Agents
+			 */
+			char * envvar = NULL;
+
+			/*
+			 * Check for an actual ofi application agent running on
+			 * thread 0 of the 17th core. This thread is dedicated
+			 * to communication and the kernel will not preempt this
+			 * thread to service interrupts, etc. Normally the default
+			 * PAMI application agent runs here.
+			 */
+			envvar = getenv("BG_APPAGENTCOMM");
+			if (envvar) {
+				if (0 != strcmp(envvar, "DISABLE")) {
+					shared->agent_count++;
+					shared->agent_is_started = 1;
+				}
+			}
+
+			/* Check for an actual ofi application agent running on
+			 * thread 1 of the 17th core. This thread is shared by
+			 * other kernel services and could be preempted to service
+			 * interrupts, etc. CNK implements a scheduler on this
+			 * thread.
+			 */
+			if (0 == shared->agent_count) {
+				envvar = getenv("BG_APPAGENT");
+				if (envvar) {
+					shared->agent_count++;
+					shared->agent_is_started = 1;
+				}
+			}
+
+			/*
+			 * Check if an ofi application agent is to be emulated
+			 * via an application pthread. The "node leader" process
+			 * will create the pthread to run the application agent.
+			 */
+			if (0 == shared->agent_count) {
+				envvar = getenv("BG_APPAGENT_EMULATED");
+				if (envvar) {
+					shared->agent_count++;
+					shared->agent_is_emulated++;
+				}
+			}
+		}
+
+		l2atomic_barrier_initialize(&node->barrier[FI_BGQ_NODE_BARRIER_KIND_AGENT],
+			&shared->barrier_data[FI_BGQ_NODE_BARRIER_KIND_AGENT],
+			local_process_count + shared->agent_count);
 
 #ifdef TODO
 		/* verify that the MU and ND are not in reset. they must be out
@@ -213,40 +279,43 @@ int fi_bgq_node_init (struct fi_bgq_node * node) {
 		}
 
 		/*
-		 * Initialize the FI_BGQ_MU_BAT_ID_GLOBAL entry to the base
+		 * Initialize the FI_BGQ_NODE_BAT_ID_GLOBAL entry to the base
 		 * physical address 0x00 which will be used by MU operations
 		 * that specify the actual physical addresss
 		 *
-		 * Initialize the FI_BGQ_MU_BAT_ID_COUNTER entry to a global
+		 * Initialize the FI_BGQ_NODE_BAT_ID_COUNTER entry to a global
 		 * variable which will be used by MU "direct put" operations
 		 * that choose to disregard reception counter completions.
 		 *
-		 * Initialize the FI_BGQ_MU_BAT_ID_ZERO entry to a global
+		 * Initialize the FI_BGQ_NODE_BAT_ID_ZERO entry to a global
 		 * variable which is set to the constant value 'zero'.
 		 *
-		 * Initialize the FI_BGQ_MU_BAT_ID_ONE entry to a global
+		 * Initialize the FI_BGQ_NODE_BAT_ID_ONE entry to a global
 		 * variable which is set to the constant value 'one'.
 		 *
-		 * Initialize the FI_BGQ_MU_BAT_ID_BLACKHOLE entry to a global
+		 * Initialize the FI_BGQ_NODE_BAT_ID_DISCARD entry to a global
 		 * variable which is used as a 'garbage' location to write
 		 * data that is to be ignored.
 		 */
 		uint64_t rc __attribute__ ((unused));
 
-		rc = fi_bgq_node_bat_allocate_id(node, NULL, FI_BGQ_MU_BAT_ID_GLOBAL);
+		rc = fi_bgq_node_bat_allocate_id(node, NULL, FI_BGQ_NODE_BAT_ID_GLOBAL);
 		assert(rc == 0);
-		fi_bgq_node_bat_write(node, NULL, FI_BGQ_MU_BAT_ID_GLOBAL, 0);
+		fi_bgq_node_bat_write(node, NULL, FI_BGQ_NODE_BAT_ID_GLOBAL, 0);
 
-		rc = fi_bgq_node_bat_allocate_id(node, NULL, FI_BGQ_MU_BAT_ID_COUNTER);
-		assert(rc == 0);
-
-		rc = fi_bgq_node_bat_allocate_id(node, NULL, FI_BGQ_MU_BAT_ID_ZERO);
+		rc = fi_bgq_node_bat_allocate_id(node, NULL, FI_BGQ_NODE_BAT_ID_COUNTER);
 		assert(rc == 0);
 
-		rc = fi_bgq_node_bat_allocate_id(node, NULL, FI_BGQ_MU_BAT_ID_ONE);
+		rc = fi_bgq_node_bat_allocate_id(node, NULL, FI_BGQ_NODE_BAT_ID_ZERO);
 		assert(rc == 0);
 
-		rc = fi_bgq_node_bat_allocate_id(node, NULL, FI_BGQ_MU_BAT_ID_BLACKHOLE);
+		rc = fi_bgq_node_bat_allocate_id(node, NULL, FI_BGQ_NODE_BAT_ID_ONE);
+		assert(rc == 0);
+
+		rc = fi_bgq_node_bat_allocate_id(node, NULL, FI_BGQ_NODE_BAT_ID_DISCARD);
+		assert(rc == 0);
+
+		rc = fi_bgq_node_bat_allocate_id(node, NULL, FI_BGQ_NODE_BAT_ID_GLOBAL_STOREADD);
 		assert(rc == 0);
 
 		uint64_t base_paddr = (uint64_t)-1;
@@ -254,7 +323,7 @@ int fi_bgq_node_init (struct fi_bgq_node * node) {
 			void * vaddr = (void *)shared->global_variables;
 
 			Kernel_MemoryRegion_t cnk_mr;
-			Kernel_CreateMemoryRegion(&cnk_mr, vaddr, sizeof(uint64_t)*5);
+			Kernel_CreateMemoryRegion(&cnk_mr, vaddr, sizeof(uint64_t)*BAT_VARIABLE_NUM);
 			uint64_t offset = (uint64_t)vaddr - (uint64_t)cnk_mr.BaseVa;
 			base_paddr = (uint64_t)cnk_mr.BasePa + offset;
 		}
@@ -263,20 +332,25 @@ int fi_bgq_node_init (struct fi_bgq_node * node) {
 		uint64_t mu_atomic_paddr =
 			MUSPI_GetAtomicAddress(base_paddr + sizeof(uint64_t) * BAT_VARIABLE_COUNTER,
 				MUHWI_ATOMIC_OPCODE_STORE_ADD);
-		fi_bgq_node_bat_write(node, NULL, FI_BGQ_MU_BAT_ID_COUNTER, mu_atomic_paddr);
+		fi_bgq_node_bat_write(node, NULL, FI_BGQ_NODE_BAT_ID_COUNTER, mu_atomic_paddr);
 
 		shared->global_variables[BAT_VARIABLE_ZERO] = 0;
-		fi_bgq_node_bat_write(node, NULL, FI_BGQ_MU_BAT_ID_ZERO,
+		fi_bgq_node_bat_write(node, NULL, FI_BGQ_NODE_BAT_ID_ZERO,
 			base_paddr + sizeof(uint64_t) * BAT_VARIABLE_ZERO);
 
 		shared->global_variables[BAT_VARIABLE_ONE] = 1;
-		fi_bgq_node_bat_write(node, NULL, FI_BGQ_MU_BAT_ID_ONE,
+		fi_bgq_node_bat_write(node, NULL, FI_BGQ_NODE_BAT_ID_ONE,
 			base_paddr + sizeof(uint64_t) * BAT_VARIABLE_ONE);
 
-		shared->global_variables[BAT_VARIABLE_BLACKHOLE] = 0;
-		fi_bgq_node_bat_write(node, NULL, FI_BGQ_MU_BAT_ID_BLACKHOLE,
-			base_paddr + sizeof(uint64_t) * BAT_VARIABLE_BLACKHOLE);
+		shared->global_variables[BAT_VARIABLE_DISCARD] = 0;
+		fi_bgq_node_bat_write(node, NULL, FI_BGQ_NODE_BAT_ID_DISCARD,
+			base_paddr + sizeof(uint64_t) * BAT_VARIABLE_DISCARD);
 
+		uint64_t mu_storeadd_paddr =
+			MUSPI_GetAtomicAddress(0, MUHWI_ATOMIC_OPCODE_STORE_ADD);
+		fi_bgq_node_bat_write(node, NULL, FI_BGQ_NODE_BAT_ID_GLOBAL_STOREADD, mu_storeadd_paddr);
+
+		fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RW);
 
 		/* finally, update the shared state to "initialized" */
 		L2_AtomicStore(&shared->is_initialized, 1);
@@ -297,7 +371,11 @@ int fi_bgq_node_init (struct fi_bgq_node * node) {
 		/* set the pointer to the shared base address table shadow */
 		node->bat.shadow = &shared->bat_shadow[0];
 
-		l2atomic_barrier_clone(&node->barrier, &shared->barrier_data);
+		l2atomic_barrier_clone(&node->barrier[FI_BGQ_NODE_BARRIER_KIND_USER],
+			&shared->barrier_data[FI_BGQ_NODE_BARRIER_KIND_USER]);
+
+		l2atomic_barrier_clone(&node->barrier[FI_BGQ_NODE_BARRIER_KIND_AGENT],
+			&shared->barrier_data[FI_BGQ_NODE_BARRIER_KIND_AGENT]);
 	}
 
 	node->leader_tcoord = shared->leader_tcoord;
@@ -314,12 +392,31 @@ int fi_bgq_node_init (struct fi_bgq_node * node) {
 		node->bat.l2_cntr_paddr[i] = paddr + sizeof(uint64_t)*i;
 	}
 
-	l2atomic_barrier_enter(&node->barrier);
+	rc = MUSPI_GIBarrierInit(&node->gi_barrier, 0);
+	assert(rc == 0);
+
+	if (node->is_leader && shared->agent_is_emulated && !shared->agent_is_started) {
+		shared->agent_is_started = 1;
+		fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RW);
+		fi_bgq_agent_emulate(NULL);
+	}
+	node->agent_is_enabled = (shared->agent_count > 0) ? 1 : 0;
 
 	return 0;
 err:
 	if (_fd != -1) close(_fd);
 	return -errno;
+}
+
+int fi_bgq_node_init (struct fi_bgq_node * node) {
+
+	int rc = 0;
+	rc = fi_bgq_node_init_no_barrier(node);
+	if (rc) return rc;
+
+	l2atomic_barrier_enter(&node->barrier[FI_BGQ_NODE_BARRIER_KIND_AGENT]);
+
+	return 0;
 }
 
 int fi_bgq_node_mu_lock_init (struct fi_bgq_node * node, struct l2atomic_lock * lock) {
@@ -375,13 +472,7 @@ void fi_bgq_node_bat_write (struct fi_bgq_node * node, struct l2atomic_lock * lo
 
 	node->bat.shadow[index] = offset;
 
-	{	/* this "l1p flush" hack is only needed to flush *writes* from a processor cache to the memory system */
-		volatile uint64_t *mu_register =
-			(volatile uint64_t *)(BGQ_MU_STATUS_CONTROL_REGS_START_OFFSET(0, 0) +
-			0x030 - PHYMAP_PRIVILEGEDOFFSET);
-		*mu_register = 0;
-	}
-	ppc_msync();
+	fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RW);
 
 	if (lock) l2atomic_lock_release(lock);
 }

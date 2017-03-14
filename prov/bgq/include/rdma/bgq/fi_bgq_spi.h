@@ -133,6 +133,13 @@ int fi_bgq_spi_injfifo_init (struct fi_bgq_spi_injfifo *f,
 		const unsigned is_remote_get,
 		const unsigned is_top_down);
 
+int fi_bgq_spi_injfifo_subgrp_init (struct fi_bgq_spi_injfifo *f,
+		MUSPI_InjFifoSubGroup_t *subgrp,
+		unsigned num_fifos_to_allocate,
+		const size_t injfifo_size,
+		const unsigned immediate_payload_sizeof,
+		const unsigned is_remote_get,
+		const int subgrp_id);
 
 void fi_bgq_spi_injfifo_clone (struct fi_bgq_spi_injfifo *dst, struct fi_bgq_spi_injfifo *src);
 
@@ -189,6 +196,144 @@ MUHWI_Destination_t fi_bgq_spi_coordinates_to_destination (BG_CoordinateMapping_
 	return *out;
 }
 
+static inline uint64_t fi_bgq_cnk_vaddr2paddr(const void * vaddr, size_t len, uint64_t * paddr)
+{
+	Kernel_MemoryRegion_t cnk_mr;
+	uint32_t cnk_rc;
+	cnk_rc = Kernel_CreateMemoryRegion(&cnk_mr, (void *)vaddr, len);
+	if (cnk_rc) return cnk_rc;
+
+	*paddr = (uint64_t)cnk_mr.BasePa + ((uint64_t)vaddr - (uint64_t)cnk_mr.BaseVa);
+	return 0;
+}
+
+/* expensive .. not for critical path! */
+static inline
+uint32_t fi_bgq_spi_calculate_fifo_map(BG_CoordinateMapping_t local,
+		BG_CoordinateMapping_t remote, Personality_t * personality,
+		uint64_t dcr_value) {
+
+	/* calculate the signed coordinate difference between the source and
+	 * destination torus coordinates
+	 */
+	ssize_t dA = (ssize_t)remote.a - (ssize_t)local.a;
+	ssize_t dB = (ssize_t)remote.b - (ssize_t)local.b;
+	ssize_t dC = (ssize_t)remote.c - (ssize_t)local.c;
+	ssize_t dD = (ssize_t)remote.d - (ssize_t)local.d;
+	ssize_t dE = (ssize_t)remote.e - (ssize_t)local.e;
+
+	/* select the fifo based on the t coordinate only if local */
+	if ((dA | dB | dC | dD | dE) == 0) {
+		return (remote.t & 0x01) ? MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 : MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1;
+	}
+
+	/* select either A- or A+ if communicating only along the A dimension */
+	if ((dB | dC | dD | dE) == 0) {
+		if (ND_ENABLE_TORUS_DIM_A & personality->Network_Config.NetFlags) {
+			uint64_t cutoff;
+			if (dA > 0) {
+				cutoff = ND_500_DCR__CTRL_CUTOFFS__A_PLUS_get(dcr_value);
+				return (remote.a > cutoff) ? MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_AM : MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_AP;
+			} else {
+				cutoff = ND_500_DCR__CTRL_CUTOFFS__A_MINUS_get(dcr_value);
+				return (remote.a < cutoff) ? MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_AP : MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_AM;
+			}
+		} else {
+			return (dA > 0) ? MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_AP : MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_AM;
+		}
+	}
+
+	/* select either B- or B+ if communicating only along the B dimension */
+	if ((dA | dC | dD | dE) == 0) {
+		if (ND_ENABLE_TORUS_DIM_B & personality->Network_Config.NetFlags) {
+			uint64_t cutoff;
+			if (dB > 0) {
+				cutoff = ND_500_DCR__CTRL_CUTOFFS__B_PLUS_get(dcr_value);
+				return (remote.b > cutoff) ? MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_BM : MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_BP;
+			} else {
+				cutoff = ND_500_DCR__CTRL_CUTOFFS__B_MINUS_get(dcr_value);
+				return (remote.b < cutoff) ? MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_BP : MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_BM;
+			}
+		} else {
+			return (dB > 0) ? MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_BP : MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_BM;
+		}
+	}
+
+	/* select either C- or C+ if communicating only along the C dimension */
+	if ((dA | dB | dD | dE) == 0) {
+		if (ND_ENABLE_TORUS_DIM_C & personality->Network_Config.NetFlags) {
+			uint64_t cutoff;
+			if (dC > 0) {
+				cutoff = ND_500_DCR__CTRL_CUTOFFS__C_PLUS_get(dcr_value);
+				return (remote.c > cutoff) ? MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_CM : MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_CP;
+			} else {
+				cutoff = ND_500_DCR__CTRL_CUTOFFS__C_MINUS_get(dcr_value);
+				return (remote.c < cutoff) ? MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_CP : MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_CM;
+			}
+		} else {
+			return (dC > 0) ? MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_CP : MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_CM;
+		}
+	}
+
+	/* select either D- or D+ if communicating only along the D dimension */
+	if ((dA | dB | dC | dE) == 0) {
+		if (ND_ENABLE_TORUS_DIM_D & personality->Network_Config.NetFlags) {
+			uint64_t cutoff;
+			if (dD > 0) {
+				cutoff = ND_500_DCR__CTRL_CUTOFFS__D_PLUS_get(dcr_value);
+				return (remote.d > cutoff) ? MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_DM : MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_DP;
+			} else {
+				cutoff = ND_500_DCR__CTRL_CUTOFFS__D_MINUS_get(dcr_value);
+				return (remote.d < cutoff) ? MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_DP : MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_DM;
+			}
+		} else {
+			return (dD > 0) ? MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_DP : MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_DM;
+		}
+	}
+
+	/* select either E- or E+ if communicating only along the E dimension */
+	if ((dA | dB | dC | dD) == 0) {
+		/* the maximum 'e' dimension size is 2 - and is a torus */
+		return (remote.t & 0x01) ? MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_EP : MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_EM;
+	}
+
+	/* communicating along diagonal */
+	/* TODO - OPTIMIZE - round-robin the fifo picking based on destination */
+	if (dA > 0) {
+		return MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_AP;
+	} else if (dA < 0)
+		return MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_AM;
+
+	if (dB > 0) {
+		return MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_BP;
+	} else if (dB < 0)
+		return MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_BM;
+
+	if (dC > 0) {
+		return MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_CP;
+	} else if (dC < 0)
+		return MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_CM;
+
+	if (dD > 0) {
+		return MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_DP;
+	} else if(dD < 0)
+		return MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_DM;
+
+	assert(0);
+	return 0xFFFFu;
+}
+
+static inline
+uint32_t fi_bgq_spi_calculate_fifo_map_single (BG_CoordinateMapping_t local, BG_CoordinateMapping_t remote) {
+
+	Personality_t personality;
+	int rc = Kernel_GetPersonality(&personality, sizeof(Personality_t));
+	if (rc) return 0;	/* error!? */
+
+	uint64_t dcr_value = DCRReadUser(ND_500_DCR(CTRL_CUTOFFS));
+
+	return fi_bgq_spi_calculate_fifo_map(local, remote, &personality, dcr_value);
+}
 
 
 #endif /* _FI_PROV_BGQ_SPI_H_ */

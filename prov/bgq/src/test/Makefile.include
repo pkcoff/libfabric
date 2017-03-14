@@ -126,6 +126,17 @@ spi_pingpong_CPPFLAGS = $(AM_CPPFLAGS) $(bgq_CPPFLAGS)
 spi_pingpong_LDFLAGS = \
 		-module -avoid-version -export-dynamic $(bgq_LDFLAGS)
 
+test_PROGRAMS += spi_agent_rzv
+spi_agent_rzv_files = prov/bgq/src/test/spi_agent_rzv.c	\
+		prov/bgq/src/fi_bgq_agent.c		\
+		prov/bgq/src/fi_bgq_node.c		\
+		prov/bgq/src/fi_bgq_spi.c
+spi_agent_rzv_SOURCES = $(spi_agent_rzv_files) $(bgq_files_nodist)
+spi_agent_rzv_CPPFLAGS = $(AM_CPPFLAGS) $(bgq_CPPFLAGS)
+spi_agent_rzv_LDFLAGS = \
+		-module -avoid-version -export-dynamic $(bgq_LDFLAGS)
+
+
 
 #bin_PROGRAMS += test_cq_agent_init
 #test_cq_agent_init_SOURCES = prov/bgq/src/test/cq_agent_init.c \

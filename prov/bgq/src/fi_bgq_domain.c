@@ -199,14 +199,8 @@ static int fi_bgq_mu_init(struct fi_bgq_domain *bgq_domain,
 	}
 
 	bgq_domain->tx.count = 0;
-
-	/* initialize the mu gi barrier */
 	bgq_domain->gi.leader_tcoord = bgq_domain->fabric->node.leader_tcoord;
 	bgq_domain->gi.is_leader = bgq_domain->fabric->node.is_leader;
-	if (bgq_domain->gi.is_leader) {
-		rc = MUSPI_GIBarrierInit(&bgq_domain->gi.barrier, 0);
-		assert(rc==0);
-	}
 
 	bgq_domain->subgroups_per_process = 64 / Kernel_ProcessCount();
 
@@ -214,12 +208,12 @@ static int fi_bgq_mu_init(struct fi_bgq_domain *bgq_domain,
 
 
 	/* global barrier after mu initialization is complete */
-	l2atomic_barrier_enter(&bgq_domain->fabric->node.barrier);
+	l2atomic_barrier_enter(&bgq_domain->fabric->node.barrier[FI_BGQ_NODE_BARRIER_KIND_USER]);
 	if (bgq_domain->gi.is_leader) {
-		rc = MUSPI_GIBarrierEnterAndWait(&bgq_domain->gi.barrier);
+		rc = MUSPI_GIBarrierEnterAndWait(&bgq_domain->fabric->node.gi_barrier);
 		assert(rc==0);
 	}
-	l2atomic_barrier_enter(&bgq_domain->fabric->node.barrier);
+	l2atomic_barrier_enter(&bgq_domain->fabric->node.barrier[FI_BGQ_NODE_BARRIER_KIND_USER]);
 
 	return 0;
 err:

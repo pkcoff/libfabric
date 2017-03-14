@@ -31,6 +31,7 @@
 #
 if HAVE_BGQ
 bgq_files = prov/bgq/src/fi_bgq_atomic.c \
+		prov/bgq/src/fi_bgq_agent.c \
 		prov/bgq/src/fi_bgq_av.c \
 		prov/bgq/src/fi_bgq_spi.c \
 		prov/bgq/src/fi_bgq_cm.c \
@@ -77,7 +78,12 @@ src_libfabric_la_LIBADD += $(bgq_LIBS)
 endif
 
 sbin_PROGRAMS = fi_bgq_agent0 fi_bgq_agent1
-fi_bgq_agent1_SOURCES = prov/bgq/src/fi_bgq_agent.c
+nodist_fi_bgq_agent0_SOURCES = $(bgq_files_nodist)
+nodist_fi_bgq_agent1_SOURCES = $(bgq_files_nodist)
+fi_bgq_agent1_SOURCES = prov/bgq/src/fi_bgq_agent.c	\
+		prov/bgq/src/fi_bgq_node.c 		\
+		prov/bgq/src/fi_bgq_spi.c		\
+		prov/bgq/src/fi_bgq_appagent.c
 fi_bgq_agent1_CPPFLAGS = $(AM_CPPFLAGS) $(bgq_CPPFLAGS)
 fi_bgq_agent1_LDFLAGS = -all-static $(bgq_LDFLAGS) -Wl,--script=@bgq_driver@/cnk/tools/AppAgent1.lds
 fi_bgq_agent0_SOURCES = $(fi_bgq_agent1_SOURCES)
@@ -94,6 +100,7 @@ rdma_bgqinclude_HEADERS =
 if HAVE_DIRECT
 nodist_rdma_bgqinclude_HEADERS = \
 	$(top_srcdir)/prov/$(PROVIDER_DIRECT)/include/rdma/bgq/fi_bgq.h \
+	$(top_srcdir)/prov/$(PROVIDER_DIRECT)/include/rdma/bgq/fi_bgq_agent.h \
 	$(top_srcdir)/prov/$(PROVIDER_DIRECT)/include/rdma/bgq/fi_bgq_compiler.h \
 	$(top_srcdir)/prov/$(PROVIDER_DIRECT)/include/rdma/bgq/fi_bgq_hwi.h \
 	$(top_srcdir)/prov/$(PROVIDER_DIRECT)/include/rdma/bgq/fi_bgq_mu.h \

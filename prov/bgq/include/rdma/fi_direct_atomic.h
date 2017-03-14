@@ -294,7 +294,7 @@ static inline void fi_bgq_atomic_fence (struct fi_bgq_ep * bgq_ep,
 			cq_desc->Torus_FIFO_Map = fifo_map;
 
 			MUSPI_SetRecPayloadBaseAddressInfo(cq_desc,
-				FI_BGQ_MU_BAT_ID_GLOBAL, byte_counter_paddr);
+				FI_BGQ_NODE_BAT_ID_GLOBAL, byte_counter_paddr);
 
 			fi_bgq_cq_enqueue_pending(bgq_ep->send_cq, bgq_context, lock_required);
 

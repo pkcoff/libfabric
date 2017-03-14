@@ -473,7 +473,7 @@ static int fi_bgq_ep_tx_init (struct fi_bgq_ep *bgq_ep,
 	BG_CoordinateMapping_t my_coords = bgq_domain->my_coords;
 
 	const uint32_t fifo_map =
-		fi_bgq_mu_calculate_fifo_map_single(my_coords, my_coords);
+		fi_bgq_spi_calculate_fifo_map_single(my_coords, my_coords);
 
 	const MUHWI_Destination_t destination =
 		fi_bgq_spi_coordinates_to_destination(my_coords);
@@ -576,11 +576,11 @@ static int fi_bgq_ep_tx_init (struct fi_bgq_ep *bgq_ep,
 			MUHWI_PACKET_TYPE_PUT;
 		desc->PacketHeader.NetworkHeader.pt2pt.Byte8.Size = 16;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Payload_Base_Address_Id =
-			FI_BGQ_MU_BAT_ID_GLOBAL;
+			FI_BGQ_NODE_BAT_ID_GLOBAL;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Pacing =
 			MUHWI_PACKET_DIRECT_PUT_IS_NOT_PACED;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id =
-			FI_BGQ_MU_BAT_ID_COUNTER;
+			FI_BGQ_NODE_BAT_ID_COUNTER;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset = 0;
 
 		/* specified at injection time */
@@ -661,11 +661,11 @@ static int fi_bgq_ep_tx_init (struct fi_bgq_ep *bgq_ep,
 			MUHWI_PACKET_TYPE_PUT;
 		desc->PacketHeader.NetworkHeader.pt2pt.Byte8.Size = 16;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Payload_Base_Address_Id =
-			FI_BGQ_MU_BAT_ID_GLOBAL;
+			FI_BGQ_NODE_BAT_ID_GLOBAL;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Pacing =
 			MUHWI_PACKET_DIRECT_PUT_IS_NOT_PACED;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id =
-			FI_BGQ_MU_BAT_ID_COUNTER;
+			FI_BGQ_NODE_BAT_ID_COUNTER;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset = 0;
 
 		union fi_bgq_mu_descriptor * fi_desc = (union fi_bgq_mu_descriptor *)desc;
@@ -687,11 +687,11 @@ static int fi_bgq_ep_tx_init (struct fi_bgq_ep *bgq_ep,
 	{
 		bgq_ep->tx.read.global_one_paddr =
 			fi_bgq_node_bat_read(&bgq_domain->fabric->node,
-			FI_BGQ_MU_BAT_ID_ONE);
+			FI_BGQ_NODE_BAT_ID_ONE);
 
 		bgq_ep->tx.read.global_zero_paddr =
 			fi_bgq_node_bat_read(&bgq_domain->fabric->node,
-			FI_BGQ_MU_BAT_ID_ZERO);
+			FI_BGQ_NODE_BAT_ID_ZERO);
 
 		MUHWI_Descriptor_t * desc = NULL;
 		union fi_bgq_mu_packet_hdr * hdr = NULL;
@@ -746,11 +746,11 @@ static int fi_bgq_ep_tx_init (struct fi_bgq_ep *bgq_ep,
 		desc->PacketHeader.NetworkHeader.pt2pt.Destination =
 			fi_bgq_uid_get_destination(self.uid.fi);
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Payload_Base_Address_Id =
-			FI_BGQ_MU_BAT_ID_GLOBAL;
+			FI_BGQ_NODE_BAT_ID_GLOBAL;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Pacing =
 			MUHWI_PACKET_DIRECT_PUT_IS_NOT_PACED;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id =
-			FI_BGQ_MU_BAT_ID_COUNTER;
+			FI_BGQ_NODE_BAT_ID_COUNTER;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset = 0;
 
 		union fi_bgq_mu_descriptor * fi_desc = (union fi_bgq_mu_descriptor *)desc;
@@ -785,13 +785,13 @@ static int fi_bgq_ep_tx_init (struct fi_bgq_ep *bgq_ep,
 			MUHWI_PACKET_DIRECT_PUT_IS_NOT_PACED;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset = 0;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id =
-			FI_BGQ_MU_BAT_ID_COUNTER;
+			FI_BGQ_NODE_BAT_ID_COUNTER;
 		desc->Pa_Payload = bgq_ep->tx.read.global_one_paddr;
 		desc->Message_Length = 8;
 
 		/* ==== specified at injection time ==== */
 		desc->Torus_FIFO_Map = -1;
-		MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, 0); /* offset will add atomic-ness at runtime */
+		MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_NODE_BAT_ID_GLOBAL, 0); /* offset will add atomic-ness at runtime */
 		/* ==== specified at injection time ==== */
 
 		/* "cq" completion direct-put model */
@@ -815,13 +815,13 @@ static int fi_bgq_ep_tx_init (struct fi_bgq_ep *bgq_ep,
 			MUHWI_PACKET_DIRECT_PUT_IS_NOT_PACED;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset = 0;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id =
-			FI_BGQ_MU_BAT_ID_COUNTER;
+			FI_BGQ_NODE_BAT_ID_COUNTER;
 		desc->Pa_Payload = bgq_ep->tx.read.global_zero_paddr;
 		desc->Message_Length = 8;
 
 		/* ==== specified at injection time ==== */
 		desc->Torus_FIFO_Map = -1;
-		MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, 0);
+		MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_NODE_BAT_ID_GLOBAL, 0);
 		/* ==== specified at injection time ==== */
 	}
 
@@ -916,7 +916,7 @@ static int fi_bgq_ep_tx_init (struct fi_bgq_ep *bgq_ep,
 			MUHWI_PACKET_DIRECT_PUT_IS_NOT_PACED;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset = 0;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id =
-			FI_BGQ_MU_BAT_ID_COUNTER;
+			FI_BGQ_NODE_BAT_ID_COUNTER;
 		desc->Pa_Payload = bgq_ep->tx.read.global_one_paddr;
 		desc->Message_Length = 8;
 
@@ -926,7 +926,7 @@ static int fi_bgq_ep_tx_init (struct fi_bgq_ep *bgq_ep,
 
 		/* ==== specified at injection time ==== */
 		desc->Torus_FIFO_Map = -1;
-		MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, 0);
+		MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_NODE_BAT_ID_GLOBAL, 0);
 
 		/* emulation direct-put cq byte counter clear model */
 		desc = &bgq_ep->tx.atomic.emulation.fence.cq_model;
@@ -949,13 +949,13 @@ static int fi_bgq_ep_tx_init (struct fi_bgq_ep *bgq_ep,
 			MUHWI_PACKET_DIRECT_PUT_IS_NOT_PACED;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset = 0;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id =
-			FI_BGQ_MU_BAT_ID_COUNTER;
+			FI_BGQ_NODE_BAT_ID_COUNTER;
 		desc->Pa_Payload = bgq_ep->tx.read.global_zero_paddr;
 		desc->Message_Length = 8;
 
 		/* ==== specified at injection time ==== */
 		desc->Torus_FIFO_Map = -1;
-		MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, 0);
+		MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_NODE_BAT_ID_GLOBAL, 0);
 	}
 
 	bgq_ep->tx.state = FI_BGQ_EP_INITITALIZED_ENABLED;
@@ -973,7 +973,7 @@ static int fi_bgq_ep_rx_init(struct fi_bgq_ep *bgq_ep)
 	BG_CoordinateMapping_t my_coords = bgq_domain->my_coords;
 
 	const uint32_t fifo_map =
-		fi_bgq_mu_calculate_fifo_map_single(my_coords, my_coords);
+		fi_bgq_spi_calculate_fifo_map_single(my_coords, my_coords);
 
 	const MUHWI_Destination_t destination =
 		fi_bgq_spi_coordinates_to_destination(my_coords);
@@ -1047,11 +1047,11 @@ static int fi_bgq_ep_rx_init(struct fi_bgq_ep *bgq_ep)
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Pacing =
 			MUHWI_PACKET_DIRECT_PUT_IS_NOT_PACED;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id =
-			FI_BGQ_MU_BAT_ID_GLOBAL;
+			FI_BGQ_NODE_BAT_ID_GLOBAL;
 
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset =
 			fi_bgq_node_bat_read(&bgq_domain->fabric->node,
-				FI_BGQ_MU_BAT_ID_COUNTER);
+				FI_BGQ_NODE_BAT_ID_COUNTER);
 
 		/* specified at injection time */
 		desc->Torus_FIFO_Map = -1;
@@ -1059,7 +1059,7 @@ static int fi_bgq_ep_rx_init(struct fi_bgq_ep *bgq_ep)
 		desc->Message_Length = 0;
 		desc->PacketHeader.NetworkHeader.pt2pt.Destination.Destination.Destination = -1;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Payload_Base_Address_Id = -1;
-		MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, 0);
+		MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_NODE_BAT_ID_GLOBAL, 0);
 
 		/*
 		 * fi_atomic*() direct-put fi_cntr completion model
@@ -1082,7 +1082,7 @@ static int fi_bgq_ep_rx_init(struct fi_bgq_ep *bgq_ep)
 			MUHWI_PACKET_DIRECT_PUT_IS_NOT_PACED;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset = 0;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id =
-			FI_BGQ_MU_BAT_ID_COUNTER;
+			FI_BGQ_NODE_BAT_ID_COUNTER;
 
 		desc->Pa_Payload = bgq_ep->tx.read.global_one_paddr;
 		desc->Message_Length = 8;
@@ -1099,7 +1099,7 @@ static int fi_bgq_ep_rx_init(struct fi_bgq_ep *bgq_ep)
 			MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_EP;
 
 		MUSPI_SetRecPayloadBaseAddressInfo(desc,
-			FI_BGQ_MU_BAT_ID_GLOBAL,	/* the bat id will be updated at injection time */
+			FI_BGQ_NODE_BAT_ID_GLOBAL,	/* the bat id will be updated at injection time */
 			MUSPI_GetAtomicAddress(0,
 				MUHWI_ATOMIC_OPCODE_STORE_ADD));
 
@@ -1194,7 +1194,7 @@ static int fi_bgq_ep_rx_init(struct fi_bgq_ep *bgq_ep)
 			MUHWI_PACKET_TYPE_PUT;
 		desc->PacketHeader.NetworkHeader.pt2pt.Byte8.Size = 16;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Payload_Base_Address_Id =
-			FI_BGQ_MU_BAT_ID_GLOBAL;
+			FI_BGQ_NODE_BAT_ID_GLOBAL;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Pacing =
 			MUHWI_PACKET_DIRECT_PUT_IS_NOT_PACED;
 
@@ -1239,11 +1239,11 @@ static int fi_bgq_ep_rx_init(struct fi_bgq_ep *bgq_ep)
 			MUHWI_PACKET_TYPE_PUT;
 		desc->PacketHeader.NetworkHeader.pt2pt.Byte8.Size = 16;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Payload_Base_Address_Id =
-			FI_BGQ_MU_BAT_ID_COUNTER;
+			FI_BGQ_NODE_BAT_ID_COUNTER;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Pacing =
 			MUHWI_PACKET_DIRECT_PUT_IS_NOT_PACED;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id =
-			FI_BGQ_MU_BAT_ID_COUNTER;
+			FI_BGQ_NODE_BAT_ID_COUNTER;
 
 		desc->PacketHeader.NetworkHeader.pt2pt.Destination.Destination.Destination = 0;
 
@@ -1318,7 +1318,7 @@ static int fi_bgq_ep_rx_init(struct fi_bgq_ep *bgq_ep)
 		desc->Pa_Payload = bgq_domain->zero.paddr;
 		desc->Message_Length = sizeof(uint64_t);
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id =
-			FI_BGQ_MU_BAT_ID_COUNTER;
+			FI_BGQ_NODE_BAT_ID_COUNTER;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset = 0;
 
 		/* specified at injection time - not used for local transfers */

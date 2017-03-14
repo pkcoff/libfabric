@@ -38,6 +38,7 @@
 #include <stdint.h>
 #include <pthread.h>
 
+#include "rdma/bgq/fi_bgq_compiler.h"
 #include "rdma/bgq/fi_bgq_spi.h"
 
 #include "rdma/bgq/fi_bgq_l2atomic.h"
@@ -92,7 +93,6 @@ struct fi_bgq_domain {
 	MUSPI_InjFifoSubGroup_t	ififo_subgroup[BGQ_MU_NUM_FIFO_SUBGROUPS_PER_NODE];
 
 	struct {
-		MUSPI_GIBarrier_t	barrier;
 		uint32_t		is_leader;
 		uint32_t		leader_tcoord;
 	} gi;
@@ -183,13 +183,7 @@ fi_bgq_domain_bat_write(struct fi_bgq_domain *bgq_domain, uint64_t requested_key
 			(uint64_t)cnk_mr.BasePa + ((uint64_t)buf - (uint64_t)cnk_mr.BaseVa);
 	}
 
-	{	/* this "l1p flush" hack is only needed to flush *writes* from a processor cache to the memory system */
-		volatile uint64_t *mu_register =
-			(volatile uint64_t *)(BGQ_MU_STATUS_CONTROL_REGS_START_OFFSET(0, 0) +
-				0x030 - PHYMAP_PRIVILEGEDOFFSET);
-		*mu_register = 0;
-	}
-	ppc_msync();
+	fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RW);
 }
 
 static inline void
@@ -200,13 +194,7 @@ fi_bgq_domain_bat_clear(struct fi_bgq_domain *bgq_domain, uint64_t key)
 	bgq_domain->bat[key].vaddr = (uintptr_t)0;
 	bgq_domain->bat[key].paddr = (uint64_t)0;
 
-	{	/* this "l1p flush" hack is only needed to flush *writes* from a processor cache to the memory system */
-		volatile uint64_t *mu_register =
-			(volatile uint64_t *)(BGQ_MU_STATUS_CONTROL_REGS_START_OFFSET(0, 0) +
-				0x030 - PHYMAP_PRIVILEGEDOFFSET);
-		*mu_register = 0;
-	}
-	ppc_msync();
+	fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RW);
 }
 
 static inline uint32_t

@@ -34,7 +34,6 @@
 
 #include <stdlib.h>
 
-/* internal function */
 int fi_bgq_spi_injfifo_subgrp_init (struct fi_bgq_spi_injfifo *f,
 		MUSPI_InjFifoSubGroup_t *subgrp,
 		unsigned num_fifos_to_allocate,

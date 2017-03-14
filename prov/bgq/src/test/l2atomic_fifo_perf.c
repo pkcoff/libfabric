@@ -50,6 +50,7 @@
 #define L2ATOMIC_FIFO_PRODUCER_STORE_FAST
 #define L2ATOMIC_FIFO_CONSUMER_MULTIPLE
 #include "rdma/bgq/fi_bgq_l2atomic.h"
+#include "rdma/bgq/fi_bgq_compiler.h"
 
 struct my_fifo {
 	struct l2atomic_fifo_consumer 	consumer;
@@ -160,7 +161,8 @@ static void * worker_fn (void * arg) {
 				result[pid][test].mmps = 0.0;
 			}
 
-			l2atomic_barrier_enter(barrier); ppc_msync();
+			l2atomic_barrier_enter(barrier);
+			fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RO);
 
 			if (pid == 0) {
 				char out[1024*10];

@@ -40,6 +40,22 @@
 #define FI_BGQ_NODE_BAT_SIZE (FI_BGQ_NODE_NUM_USER_SUBGROUPS * BGQ_MU_NUM_DATA_COUNTERS_PER_SUBGROUP)
 #define FI_BGQ_NODE_APPLICATION_BAT_SIZE ((BGQ_MU_NUM_FIFO_GROUPS-1) * BGQ_MU_NUM_DATA_COUNTERS_PER_GROUP)	/* cnk and agents use group 16 */
 
+#define FI_BGQ_NODE_BAT_SUBGROUP_GLOBAL	(65)
+enum fi_bgq_node_bat_id {
+	FI_BGQ_NODE_BAT_ID_GLOBAL = (FI_BGQ_NODE_BAT_SUBGROUP_GLOBAL * BGQ_MU_NUM_DATA_COUNTERS_PER_SUBGROUP),
+	FI_BGQ_NODE_BAT_ID_COUNTER,
+	FI_BGQ_NODE_BAT_ID_ZERO,
+	FI_BGQ_NODE_BAT_ID_ONE,
+	FI_BGQ_NODE_BAT_ID_GLOBAL_STOREADD,
+	FI_BGQ_NODE_BAT_ID_DISCARD
+};
+
+enum fi_bgq_node_barrier_kind {
+	FI_BGQ_NODE_BARRIER_KIND_USER = 0,
+	FI_BGQ_NODE_BARRIER_KIND_AGENT,
+	FI_BGQ_NODE_BARRIER_KIND_COUNT
+};
+
 struct fi_bgq_node {
 	void *shm_ptr;
 	void *abs_ptr;
@@ -49,7 +65,8 @@ struct fi_bgq_node {
 	struct {
 		struct l2atomic_counter	allocator;
 	} lock;
-	struct l2atomic_barrier		barrier;
+	struct l2atomic_barrier		barrier[FI_BGQ_NODE_BARRIER_KIND_COUNT];
+	MUSPI_GIBarrier_t		gi_barrier;
 	uint32_t			leader_tcoord;
 	uint32_t			is_leader;
 	struct {
@@ -57,6 +74,8 @@ struct fi_bgq_node {
 		volatile uint64_t			l2_cntr_paddr[FI_BGQ_NODE_APPLICATION_BAT_SIZE];
 		MUSPI_BaseAddressTableSubGroup_t	subgroup[FI_BGQ_NODE_BAT_SIZE];
 	} bat;
+	uint32_t			agent_is_enabled;
+	uint32_t			agent_rfifo_id[2];
 };
 
 int fi_bgq_node_init (struct fi_bgq_node * node);

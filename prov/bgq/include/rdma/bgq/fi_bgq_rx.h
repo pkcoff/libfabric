@@ -104,7 +104,7 @@ void complete_atomic_operation (struct fi_bgq_ep * bgq_ep, struct fi_bgq_mu_pack
 		memcpy(payload_vaddr, (const void*) addr, nbytes);
 		desc->Message_Length = nbytes;
 
-		MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, dst_paddr);
+		MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_NODE_BAT_ID_GLOBAL, dst_paddr);
 		if (cq_paddr != 0) {	/* unlikely */
 			desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset =
 				MUSPI_GetAtomicAddress(cq_paddr, MUHWI_ATOMIC_OPCODE_STORE_ADD);
@@ -176,7 +176,7 @@ void set_desc_payload_paddr (union fi_bgq_mu_descriptor * fi_mu_desc, struct fi_
 fprintf(stderr,"set_desc_payload_paddr rma_update_type == FI_BGQ_MU_DESCRIPTOR_UPDATE_BAT_TYPE_DST paddr is 0x%016lx\n",paddr);
 #endif
 		MUSPI_SetRecPayloadBaseAddressInfo((MUHWI_Descriptor_t *)fi_mu_desc,
-			FI_BGQ_MU_BAT_ID_GLOBAL, paddr);
+			FI_BGQ_NODE_BAT_ID_GLOBAL, paddr);
 
 	} else if (rma_update_type == FI_BGQ_MU_DESCRIPTOR_UPDATE_BAT_TYPE_SRC) {
 		const uint64_t key_msb = fi_mu_desc->rma.key_msb;
@@ -308,7 +308,7 @@ void inject_eager_completion (struct fi_bgq_ep * bgq_ep,
 
 	qpx_memcpy64((void*)desc, (const void*)&bgq_ep->rx.poll.ack_model[is_local]);
 
-	MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_MU_BAT_ID_GLOBAL, cntr_paddr);
+	MUSPI_SetRecPayloadBaseAddressInfo(desc, FI_BGQ_NODE_BAT_ID_GLOBAL, cntr_paddr);
 	desc->PacketHeader.NetworkHeader.pt2pt.Destination = pkt->hdr.completion.origin;
 
 	MUSPI_InjFifoAdvanceDesc(bgq_ep->rx.poll.injfifo.muspi_injfifo);
@@ -591,12 +591,12 @@ void complete_receive_operation (struct fi_bgq_ep * bgq_ep,
 			xfer_desc->Pa_Payload = pkt->payload.rendezvous.mu_iov[i].src_paddr;
 			const uint64_t message_length = pkt->payload.rendezvous.mu_iov[i].message_length;
 			xfer_desc->Message_Length = message_length;
-			MUSPI_SetRecPayloadBaseAddressInfo(xfer_desc, FI_BGQ_MU_BAT_ID_GLOBAL, dst_paddr);
+			MUSPI_SetRecPayloadBaseAddressInfo(xfer_desc, FI_BGQ_NODE_BAT_ID_GLOBAL, dst_paddr);
 			dst_paddr += message_length;
 			xfer_desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset =
 				MUSPI_GetAtomicAddress(byte_counter_paddr, MUHWI_ATOMIC_OPCODE_STORE_ADD);
 			xfer_desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id =
-				FI_BGQ_MU_BAT_ID_GLOBAL;
+				FI_BGQ_NODE_BAT_ID_GLOBAL;
 
 			rget_desc->Message_Length += sizeof(MUHWI_Descriptor_t);
 
@@ -839,7 +839,7 @@ int poll_rfifo (struct fi_bgq_ep * bgq_ep, const unsigned is_manual_progress) {
 	if (offset_head < offset_tail) {			/* likely */
 
 		muspi_dcbt(va_head, 0);
-		_bgq_msync();
+		fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RO);
 
 		const uintptr_t stop = va_head + offset_tail - offset_head;
 		int process_rfifo_iter = 0;
@@ -871,7 +871,7 @@ int poll_rfifo (struct fi_bgq_ep * bgq_ep, const unsigned is_manual_progress) {
 
 			/* head packet does not wrap */
 			muspi_dcbt(va_head, 0);
-			_bgq_msync();
+			fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RO);
 
 			const uintptr_t stop = va_end - 544;
 			int process_rfifo_iter = 0;
@@ -898,7 +898,7 @@ int poll_rfifo (struct fi_bgq_ep * bgq_ep, const unsigned is_manual_progress) {
 
 			/* head packet may wrap */
 			muspi_dcbt(va_head, 0);
-			_bgq_msync();
+			fi_bgq_compiler_msync(FI_BGQ_COMPILER_MSYNC_KIND_RO);
 
 			uint32_t packet_bytes = ((uint32_t)hdr->NetworkHeader.pt2pt.Byte8.Size + 1) << 5;
 			const uintptr_t bytes_before_wrap = va_end - va_head;

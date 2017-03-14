@@ -32,6 +32,10 @@
 #ifndef _FI_PROV_BGQ_COMPILER_H_
 #define _FI_PROV_BGQ_COMPILER_H_
 
+#include <assert.h>
+#include <stdint.h>
+
+#include "rdma/bgq/fi_bgq_hwi.h"
 
 #if (defined(__xlc__) || defined(__xlC__)) && !defined(__OPTIMIZE__)
 #undef VECTOR_LOAD_NU
@@ -91,6 +95,27 @@ void qpx_memcpy64(void *dst, const void *src) {
 	((double*)dst)[6] = ((const double*)src)[6];
 	((double*)dst)[7] = ((const double*)src)[7];
 #endif
+}
+
+enum fi_bgq_compiler_msync_kind {
+	FI_BGQ_COMPILER_MSYNC_KIND_RW,
+	FI_BGQ_COMPILER_MSYNC_KIND_RO,
+	FI_BGQ_COMPILER_MSYNC_KIND_WO,
+	FI_BGQ_COMPILER_MSYNC_KIND_LAST
+};
+
+static inline
+void fi_bgq_compiler_msync (const enum fi_bgq_compiler_msync_kind kind)
+{
+	if (kind == FI_BGQ_COMPILER_MSYNC_KIND_RW || kind == FI_BGQ_COMPILER_MSYNC_KIND_WO) {
+		/* this "l1p flush" hack is only needed to flush *writes*
+		 * from a processor cache to the memory system */
+		volatile uint64_t *mu_register =
+			(volatile uint64_t *)(BGQ_MU_STATUS_CONTROL_REGS_START_OFFSET(0, 0) +
+			0x030 - PHYMAP_PRIVILEGEDOFFSET);
+		*mu_register = 0;
+	}
+	ppc_msync();
 }
 
 #endif /* _FI_PROV_BGQ_COMPILER_H_ */

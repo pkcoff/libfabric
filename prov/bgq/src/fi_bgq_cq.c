@@ -543,12 +543,12 @@ int fi_bgq_cq_open(struct fid_domain *dom,
 
 		desc->PacketHeader.NetworkHeader.pt2pt.Byte8.Byte8 = MUHWI_PACKET_TYPE_PUT;
 		desc->PacketHeader.NetworkHeader.pt2pt.Byte8.Size = 16;
-		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Payload_Base_Address_Id = FI_BGQ_MU_BAT_ID_COUNTER;
+		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Payload_Base_Address_Id = FI_BGQ_NODE_BAT_ID_COUNTER;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Pacing = MUHWI_PACKET_DIRECT_PUT_IS_NOT_PACED;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Put_Offset_MSB = 0;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Put_Offset_LSB = 0;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Unused1 = 0;
-		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id = FI_BGQ_MU_BAT_ID_COUNTER;
+		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id = FI_BGQ_NODE_BAT_ID_COUNTER;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Valid_Bytes_In_Payload = 0;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Unused2 = 0;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset = 0;

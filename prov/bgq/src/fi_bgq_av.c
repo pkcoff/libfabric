@@ -119,7 +119,7 @@ fi_bgq_av_insert(struct fid_av *av, const void *addr, size_t count,
 	for (n=0; n<count; ++n) {
 
 		const uint32_t fifo_map =
-			fi_bgq_mu_calculate_fifo_map(my_coords, your_coords[n],
+			fi_bgq_spi_calculate_fifo_map(my_coords, your_coords[n],
 					&personality, dcr_value);
 
 		const MUHWI_Destination_t destination =
@@ -185,7 +185,7 @@ fi_bgq_av_insertsvc(struct fid_av *av, const char *node, const char *service,
 	BG_CoordinateMapping_t my_coords = bgq_av->domain->my_coords;
 
 	const uint32_t fifo_map =
-		fi_bgq_mu_calculate_fifo_map_single(my_coords, your_coords);
+		fi_bgq_spi_calculate_fifo_map_single(my_coords, your_coords);
 
 	const MUHWI_Destination_t destination =
 		fi_bgq_spi_coordinates_to_destination(your_coords);
@@ -304,7 +304,7 @@ fi_bgq_av_insertsym(struct fid_av *av, const char *node, size_t nodecnt,
 		if (n == maximum_to_insert) break;
 
 		const uint32_t fifo_map =
-			fi_bgq_mu_calculate_fifo_map(my_coords, your_coords,
+			fi_bgq_spi_calculate_fifo_map(my_coords, your_coords,
 				&personality, dcr_value);
 
 		const MUHWI_Destination_t destination =
@@ -465,7 +465,7 @@ int fi_bgq_av_open(struct fid_domain *dom,
 		for (i=0;i<ep_count;i++) {
 
 			const uint32_t fifo_map =
-				fi_bgq_mu_calculate_fifo_map(my_coords, map[i],
+				fi_bgq_spi_calculate_fifo_map(my_coords, map[i],
 					&personality, dcr_value);
 
 			const MUHWI_Destination_t destination =
