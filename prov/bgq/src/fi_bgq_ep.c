@@ -487,6 +487,53 @@ static int fi_bgq_ep_tx_init (struct fi_bgq_ep *bgq_ep,
 	fprintf(stderr,"fi_bgq_ep_tx_init created addr:\n");
 	FI_BGQ_ADDR_DUMP((fi_addr_t *)&self.fi);
 #endif
+
+	/*
+	 * injection bandwidth degrade experiment
+	 */
+	{
+		bgq_ep->tx.injection_bandwidth_degrade.factor =
+			bgq_domain->fabric->node.injection_bandwidth_degrade.factor;
+
+		bgq_ep->tx.injection_bandwidth_degrade.maxsize =
+			bgq_domain->fabric->node.injection_bandwidth_degrade.maxsize;
+
+		bgq_ep->tx.injection_bandwidth_degrade.paddr_rsh3b =
+			bgq_domain->fabric->node.injection_bandwidth_degrade.paddr >> 3;;
+
+		MUHWI_Descriptor_t * desc = &bgq_ep->tx.send.injbw_degrade_model;
+		MUSPI_DescriptorZeroOut(desc);
+
+		desc->Half_Word0.Prefetch_Only =
+			MUHWI_DESCRIPTOR_PRE_FETCH_ONLY_NO;
+		desc->Half_Word1.Interrupt =
+			MUHWI_DESCRIPTOR_DO_NOT_INTERRUPT_ON_PACKET_ARRIVAL;
+		desc->PacketHeader.NetworkHeader.pt2pt.Data_Packet_Type =
+			MUHWI_PT2PT_DATA_PACKET_TYPE;
+		desc->PacketHeader.NetworkHeader.pt2pt.Byte3.Byte3 =
+			MUHWI_PACKET_VIRTUAL_CHANNEL_DETERMINISTIC;
+		desc->PacketHeader.NetworkHeader.pt2pt.Byte8.Byte8 =
+			MUHWI_PACKET_TYPE_PUT;
+		desc->PacketHeader.NetworkHeader.pt2pt.Byte8.Size = 16;
+		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Payload_Base_Address_Id =
+			FI_BGQ_MU_BAT_ID_GLOBAL;
+		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Pacing =
+			MUHWI_PACKET_DIRECT_PUT_IS_NOT_PACED;
+		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id =
+			FI_BGQ_MU_BAT_ID_COUNTER;
+		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset = 0;
+		desc->Torus_FIFO_Map =
+			MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 |
+			MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1;
+
+		/* specified at injection time */
+		desc->Pa_Payload = 0;
+		desc->Message_Length = 0;
+		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Put_Offset_MSB = 0;
+		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Put_Offset_LSB = 0;
+	}
+
+
 	/*
 	 *  fi_[t]send*() descriptor models
 	 */
@@ -1020,6 +1067,52 @@ static int fi_bgq_ep_rx_init(struct fi_bgq_ep *bgq_ep)
 		assert(0);
 		goto err;
 	}
+
+	/*
+	 * injection bandwidth degrade experiment
+	 */
+	{
+		bgq_ep->rx.poll.injection_bandwidth_degrade.factor =
+			bgq_domain->fabric->node.injection_bandwidth_degrade.factor;
+
+		bgq_ep->rx.poll.injection_bandwidth_degrade.maxsize =
+			bgq_domain->fabric->node.injection_bandwidth_degrade.maxsize;
+
+		bgq_ep->rx.poll.injection_bandwidth_degrade.paddr_rsh3b =
+			bgq_domain->fabric->node.injection_bandwidth_degrade.paddr >> 3;;
+
+		MUHWI_Descriptor_t * desc = &bgq_ep->rx.poll.injbw_degrade_model;
+		MUSPI_DescriptorZeroOut(desc);
+
+		desc->Half_Word0.Prefetch_Only =
+			MUHWI_DESCRIPTOR_PRE_FETCH_ONLY_NO;
+		desc->Half_Word1.Interrupt =
+			MUHWI_DESCRIPTOR_DO_NOT_INTERRUPT_ON_PACKET_ARRIVAL;
+		desc->PacketHeader.NetworkHeader.pt2pt.Data_Packet_Type =
+			MUHWI_PT2PT_DATA_PACKET_TYPE;
+		desc->PacketHeader.NetworkHeader.pt2pt.Byte3.Byte3 =
+			MUHWI_PACKET_VIRTUAL_CHANNEL_DETERMINISTIC;
+		desc->PacketHeader.NetworkHeader.pt2pt.Byte8.Byte8 =
+			MUHWI_PACKET_TYPE_PUT;
+		desc->PacketHeader.NetworkHeader.pt2pt.Byte8.Size = 16;
+		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Payload_Base_Address_Id =
+			FI_BGQ_MU_BAT_ID_GLOBAL;
+		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Pacing =
+			MUHWI_PACKET_DIRECT_PUT_IS_NOT_PACED;
+		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id =
+			FI_BGQ_MU_BAT_ID_COUNTER;
+		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset = 0;
+		desc->Torus_FIFO_Map =
+			MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 |
+			MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1;
+
+		/* specified at injection time */
+		desc->Pa_Payload = 0;
+		desc->Message_Length = 0;
+		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Put_Offset_MSB = 0;
+		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Put_Offset_LSB = 0;
+	}
+
 
 	/*
 	 * fi_atomic*() descriptor models

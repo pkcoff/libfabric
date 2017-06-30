@@ -428,6 +428,8 @@ void complete_receive_operation (struct fi_bgq_ep * bgq_ep,
 	} else {			/* rendezvous packet */
 
 		uint64_t niov = pkt->hdr.pt2pt.rendezvous.niov_minus_1 + 1;
+
+
 		assert(niov <= (7-is_multi_receive));
 		uint64_t xfer_len = pkt->payload.rendezvous.mu_iov[0].message_length;
 		{
@@ -574,6 +576,37 @@ void complete_receive_operation (struct fi_bgq_ep * bgq_ep,
 			pkt->hdr.pt2pt.rendezvous.rget_inj_fifo_id;	/* TODO - different rget inj fifos for tag vs msg operations? */
 
 		rget_desc->PacketHeader.NetworkHeader.pt2pt.Destination = fi_bgq_uid_get_destination(pkt->hdr.pt2pt.uid.fi);
+
+
+		/*
+		 * injection bandwidth degrade experiment
+		 */
+		const uint64_t injection_bandwidth_degrade_factor =
+			bgq_ep->rx.poll.injection_bandwidth_degrade.factor;
+
+		if (injection_bandwidth_degrade_factor > 0) {
+
+			const uint64_t maxiov = 7 - is_multi_receive -
+				injection_bandwidth_degrade_factor == 0 ? 0 : 1;
+
+			assert(niov <= maxiov);
+
+			const uint64_t total_bytes = xfer_len * injection_bandwidth_degrade_factor;
+
+			if (total_bytes < bgq_ep->rx.poll.injection_bandwidth_degrade.maxsize) {
+
+				uint64_t injbw_degrade_paddr = pkt->payload.rendezvous.injbw_degrade_paddr_rsh3b << 3;
+
+				MUHWI_Descriptor_t * injbw_degrade_desc = payload++;
+				qpx_memcpy64((void*)injbw_degrade_desc, (const void*)&bgq_ep->rx.poll.injbw_degrade_model);
+				injbw_degrade_desc->Pa_Payload = injbw_degrade_paddr;
+				MUSPI_SetRecPayloadBaseAddressInfo(injbw_degrade_desc, FI_BGQ_MU_BAT_ID_GLOBAL, injbw_degrade_paddr);
+
+				injbw_degrade_desc->Message_Length = total_bytes;
+
+				rget_desc->Message_Length += sizeof(MUHWI_Descriptor_t);
+			}
+		}
 
 		/* initialize the direct-put ("data transfer") descriptor(s) in the rget payload */
 		unsigned i;

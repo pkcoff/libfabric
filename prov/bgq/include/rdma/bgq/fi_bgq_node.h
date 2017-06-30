@@ -57,6 +57,12 @@ struct fi_bgq_node {
 		volatile uint64_t			l2_cntr_paddr[FI_BGQ_NODE_APPLICATION_BAT_SIZE];
 		MUSPI_BaseAddressTableSubGroup_t	subgroup[FI_BGQ_NODE_BAT_SIZE];
 	} bat;
+
+	struct {
+		size_t				factor;
+		size_t				maxsize;
+		uintptr_t			paddr;
+	} injection_bandwidth_degrade;
 };
 
 int fi_bgq_node_init (struct fi_bgq_node * node);

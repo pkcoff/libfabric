@@ -95,7 +95,12 @@ struct rx_operation {
 struct fi_bgq_ep_tx {
 
 	struct fi_bgq_spi_injfifo	injfifo;	/* cloned from stx; 88 bytes */
-	uint64_t			unused0[5];
+	struct {
+		size_t			factor;
+		size_t			maxsize;
+		uintptr_t		paddr_rsh3b;
+	} injection_bandwidth_degrade;
+	uint64_t			unused0[2];
 
 	/* == L2 CACHE LINE == */
 
@@ -112,7 +117,7 @@ struct fi_bgq_ep_tx {
 		MUHWI_Descriptor_t	local_completion_model;	/* only "local completion eager" */
 		MUHWI_Descriptor_t	rzv_model[2];	/* [0]=="internode"; [1]=="intranode" */
 		MUHWI_Descriptor_t	remote_completion_model;
-		uint8_t			unused[64];
+		MUHWI_Descriptor_t	injbw_degrade_model;
 	} send __attribute((aligned(L2_CACHE_LINE_SIZE)));
 	/* == L2 CACHE LINE == */
 
@@ -264,6 +269,16 @@ struct fi_bgq_ep_rx {
 		struct fi_bgq_cq	*recv_cq;
 		struct fi_bgq_cntr	*write_cntr;
 		uint64_t		min_multi_recv;
+		struct {
+			size_t			factor;
+			size_t			maxsize;
+			uintptr_t		paddr_rsh3b;
+		} injection_bandwidth_degrade;
+		uint64_t			pad_2[2];
+
+		MUHWI_Descriptor_t		injbw_degrade_model;
+
+		/* == L2 CACHE LINE == */
 
 		/* -- non-critical -- */
 		struct fi_bgq_domain    *domain;
@@ -733,6 +748,11 @@ ssize_t fi_bgq_send_generic_flags(struct fid_ep *ep,
 		send_desc->Pa_Payload = payload_paddr;
 
 		payload->rendezvous.fifo_map = fi_bgq_addr_get_fifo_map(bgq_dst_addr.fi);
+
+		/*
+		 * injection bandwidth degrade experiment
+		 */
+		payload->rendezvous.injbw_degrade_paddr_rsh3b = bgq_ep->tx.injection_bandwidth_degrade.paddr_rsh3b;
 
 		if (is_contiguous) {
 			/* only send one mu iov */

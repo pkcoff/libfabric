@@ -398,7 +398,7 @@ struct fi_bgq_mu_fetch_metadata {
 union fi_bgq_mu_packet_payload {
 	uint8_t				byte[512];
 	struct {
-		uint32_t		unused;
+		uint32_t		injbw_degrade_paddr_rsh3b;	/* 34b paddr, 8 byte aligned; See: NOTE_MU_PADDR */
 		uint32_t		cntr_paddr_rsh3b;	/* 34b paddr, 8 byte aligned; See: NOTE_MU_PADDR */
 		uint64_t		fifo_map;
 		struct fi_bgq_mu_iov	mu_iov[31];

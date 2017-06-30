@@ -75,6 +75,12 @@ struct fi_bgq_node_shared {
 	uint32_t				leader_tcoord;
 	volatile uint64_t	bat_shadow[FI_BGQ_NODE_BAT_SIZE];
 	volatile uint64_t	bat_cntr[FI_BGQ_NODE_APPLICATION_BAT_SIZE];
+
+	struct {
+		size_t				factor;
+		size_t				maxsize;
+		uintptr_t			paddr;
+	} injection_bandwidth_degrade;
 };
 
 
@@ -278,6 +284,45 @@ int fi_bgq_node_init (struct fi_bgq_node * node) {
 			base_paddr + sizeof(uint64_t) * BAT_VARIABLE_BLACKHOLE);
 
 
+		shared->injection_bandwidth_degrade.factor = 0;
+		shared->injection_bandwidth_degrade.paddr = 0;
+		shared->injection_bandwidth_degrade.maxsize = 0;
+
+		char * envvar = NULL;
+		envvar = getenv("OFI_INJECTION_BANDWIDTH_DEGRADE_FACTOR");
+		if (envvar) {
+			char *foo = NULL;
+			errno = 0;
+			unsigned long int n = strtoul(envvar, &foo, 10);
+			if (errno == 0 && n > 0) {
+				shared->injection_bandwidth_degrade.factor = n;
+
+				shared->injection_bandwidth_degrade.maxsize = 1024*1024*17;
+				envvar = getenv("OFI_INJECTION_BANDWIDTH_DEGRADE_MAXSIZE");
+				if (envvar) {
+					errno = 0;
+					n = strtoul(envvar, &foo, 10);
+					if (errno == 0) {
+						shared->injection_bandwidth_degrade.maxsize = n;
+					}
+				}
+
+				if (shared->injection_bandwidth_degrade.maxsize != 0) {
+					void * mem = NULL;
+					rc = posix_memalign((void**)&mem, 32, shared->injection_bandwidth_degrade.maxsize);
+					if ((rc == 0) && (mem != NULL)) {
+						Kernel_MemoryRegion_t cnk_mr;
+						Kernel_CreateMemoryRegion(&cnk_mr, mem, shared->injection_bandwidth_degrade.maxsize);
+						uint64_t offset = (uint64_t)mem - (uint64_t)cnk_mr.BaseVa;
+						shared->injection_bandwidth_degrade.paddr = (uint64_t)cnk_mr.BasePa + offset;
+					} else {
+						/* memory allocation error */
+						fprintf(stderr, "%s:%s():%d Error allocating the injection bandwidth degrade buffer memory!\n", __FILE__, __func__, __LINE__); abort();
+					}
+				}
+			}
+		}
+
 		/* finally, update the shared state to "initialized" */
 		L2_AtomicStore(&shared->is_initialized, 1);
 
@@ -313,6 +358,10 @@ int fi_bgq_node_init (struct fi_bgq_node * node) {
 	for (i=0; i<FI_BGQ_NODE_APPLICATION_BAT_SIZE; ++i) {
 		node->bat.l2_cntr_paddr[i] = paddr + sizeof(uint64_t)*i;
 	}
+
+	node->injection_bandwidth_degrade.factor = shared->injection_bandwidth_degrade.factor;
+	node->injection_bandwidth_degrade.maxsize = shared->injection_bandwidth_degrade.maxsize;
+	node->injection_bandwidth_degrade.paddr = shared->injection_bandwidth_degrade.paddr;
 
 	l2atomic_barrier_enter(&node->barrier);
 
