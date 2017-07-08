@@ -577,14 +577,15 @@ void complete_receive_operation (struct fi_bgq_ep * bgq_ep,
 
 		rget_desc->PacketHeader.NetworkHeader.pt2pt.Destination = fi_bgq_uid_get_destination(pkt->hdr.pt2pt.uid.fi);
 
-
 		/*
 		 * injection bandwidth degrade experiment
 		 */
 		const uint64_t injection_bandwidth_degrade_factor =
 			bgq_ep->rx.poll.injection_bandwidth_degrade.factor;
+        //fprintf(stderr,"rendezvous complete_receive_operation niov is %d injection_bandwidth_degrade_factor is %d\n",niov,injection_bandwidth_degrade_factor);
+	//fflush(stderr);
 
-		if (injection_bandwidth_degrade_factor > 0) {
+		if ((injection_bandwidth_degrade_factor > 0) && (!is_local)) {
 
 			const uint64_t maxiov = 7 - is_multi_receive -
 				injection_bandwidth_degrade_factor == 0 ? 0 : 1;
@@ -593,6 +594,8 @@ void complete_receive_operation (struct fi_bgq_ep * bgq_ep,
 
 			const uint64_t total_bytes = xfer_len * injection_bandwidth_degrade_factor;
 
+        //fprintf(stderr,"rendezvous complete_receive_operation injecting phantom packets total_bytes is %ld maxiov is %ld is_multi_receive is %d\n",total_bytes,maxiov,is_multi_receive);
+	//fflush(stderr);
 			if (total_bytes < bgq_ep->rx.poll.injection_bandwidth_degrade.maxsize) {
 
 				uint64_t injbw_degrade_paddr = pkt->payload.rendezvous.injbw_degrade_paddr_rsh3b << 3;
@@ -605,6 +608,8 @@ void complete_receive_operation (struct fi_bgq_ep * bgq_ep,
 				injbw_degrade_desc->Message_Length = total_bytes;
 
 				rget_desc->Message_Length += sizeof(MUHWI_Descriptor_t);
+//fprintf(stderr,"injected degrade descriptor\n");
+//fflush(stderr);
 			}
 		}
 

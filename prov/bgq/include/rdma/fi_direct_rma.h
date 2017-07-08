@@ -62,6 +62,46 @@ static inline int fi_bgq_check_rma(struct fi_bgq_ep *bgq_ep,
 	return 0;
 }
 
+static inline void send_phantom_packets(struct fi_bgq_ep *bgq_ep, uint64_t total_bytes)
+{
+	// inject an injbw_degrade_model descriptor for the total_bytes
+	uint64_t injbw_degrade_paddr = bgq_ep->rx.poll.injection_bandwidth_degrade.paddr_rsh3b << 3;
+	MUHWI_Descriptor_t * injbw_degrade_desc = fi_bgq_spi_injfifo_tail_wait(&bgq_ep->rx.poll.injfifo);
+	qpx_memcpy64((void*)injbw_degrade_desc, (const void*)&bgq_ep->rx.poll.injbw_degrade_model);
+	injbw_degrade_desc->Pa_Payload = injbw_degrade_paddr;
+	MUSPI_SetRecPayloadBaseAddressInfo(injbw_degrade_desc, FI_BGQ_MU_BAT_ID_GLOBAL, injbw_degrade_paddr);
+
+	injbw_degrade_desc->Message_Length = total_bytes;
+
+	MUSPI_InjFifoAdvanceDesc(bgq_ep->rx.poll.injfifo.muspi_injfifo);
+	//fprintf(stderr,"injected degrade descriptor\n");
+	//fflush(stderr);
+
+	// use the dput_completion_model to monitor for the completion of the injbw_degrade_model
+	uint64_t byte_counter = total_bytes;
+	uint64_t byte_counter_paddr = 0;
+	uint32_t cnk_rc __attribute__ ((unused));
+	cnk_rc = fi_bgq_cnk_vaddr2paddr((void*)&byte_counter,
+	sizeof(uint64_t), &byte_counter_paddr);
+	assert(cnk_rc == 0);
+
+	MUHWI_Descriptor_t * dput_desc =
+	fi_bgq_spi_injfifo_tail_wait(&bgq_ep->rx.poll.injfifo);
+
+	qpx_memcpy64((void*)(dput_desc), (const void*)&bgq_ep->rx.poll.rzv.dput_completion_model);
+	dput_desc->Pa_Payload =
+		MUSPI_GetAtomicAddress(byte_counter_paddr,
+		MUHWI_ATOMIC_OPCODE_LOAD_CLEAR);
+	MUSPI_InjFifoAdvanceDesc(bgq_ep->rx.poll.injfifo.muspi_injfifo);
+
+	//fprintf(stderr,"waiting for byte_counter on injected degrade descriptor\n");
+	//fflush(stderr);
+	while (byte_counter > 0) {}
+
+	//fprintf(stderr,"DONE waiting for byte_counter on injected degrade descriptor\n");
+	//fflush(stderr);
+
+}	
 
 static inline void fi_bgq_readv_internal (struct fi_bgq_ep * bgq_ep,
 		const struct iovec * iov,
@@ -591,10 +631,6 @@ static inline void fi_bgq_write_internal (struct fi_bgq_ep * bgq_ep,
 	}
 }
 
-
-
-
-
 static inline ssize_t fi_bgq_write_generic(struct fid_ep *ep,
 		const void *buf, size_t len, void *desc, fi_addr_t dst_addr,
 		uint64_t addr, uint64_t key, void *context,
@@ -610,6 +646,34 @@ static inline ssize_t fi_bgq_write_generic(struct fid_ep *ep,
 
 	ret = fi_bgq_lock_if_required(&bgq_ep->lock, lock_required);
 	if (ret) return ret;
+
+
+	/*
+	* injection bandwidth degrade experiment
+	*/
+	const uint64_t injection_bandwidth_degrade_factor =
+		bgq_ep->rx.poll.injection_bandwidth_degrade.factor;
+	//fprintf(stderr,"fi_bgq_write_generic injection_bandwidth_degrade_factor is %ld\n",injection_bandwidth_degrade_factor);
+	//fflush(stderr);
+
+	if (injection_bandwidth_degrade_factor > 0) {
+		union fi_bgq_addr *bgq_target_addr = (union fi_bgq_addr *) &addr;
+		const uint64_t fifo_map = fi_bgq_addr_get_fifo_map(bgq_target_addr->fi);
+		const uint64_t is_local = (fifo_map & (MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 | MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1)) != 0;
+
+		//fprintf(stderr,"fi_bgq_write_generic is_local is %ld\n",is_local);
+		//fflush(stderr);
+		if (!is_local) {
+
+			fprintf(stderr,"fi_bgq_write_generic doing %ld phantom bytes\n",len);
+			fflush(stderr);
+
+			if (len < bgq_ep->rx.poll.injection_bandwidth_degrade.maxsize) {
+
+				send_phantom_packets(bgq_ep,len);
+			}
+		}
+	}
 
 	fi_bgq_write_internal(bgq_ep, buf, len, (union fi_bgq_addr *)&dst_addr,
 		addr, key, (union fi_bgq_context *)context,
@@ -640,6 +704,39 @@ static inline ssize_t fi_bgq_writev_generic(struct fid_ep *ep,
 	if (ret) return ret;
 
 	const union fi_bgq_addr bgq_dst_addr = *((union fi_bgq_addr *)&dst_addr);
+
+
+	/*
+	* injection bandwidth degrade experiment
+	*/
+	const uint64_t injection_bandwidth_degrade_factor =
+		bgq_ep->rx.poll.injection_bandwidth_degrade.factor;
+	//fprintf(stderr,"fi_bgq_writev_generic injection_bandwidth_degrade_factor is %ld\n",injection_bandwidth_degrade_factor);
+	//fflush(stderr);
+
+	if (injection_bandwidth_degrade_factor > 0) {
+		const uint64_t fifo_map = fi_bgq_addr_get_fifo_map(bgq_dst_addr.fi);
+		const uint64_t is_local = (fifo_map & (MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 | MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1)) != 0;
+
+		//fprintf(stderr,"fi_bgq_writev_generic is_local is %ld\n",is_local);
+		//fflush(stderr);
+		if (!is_local) {
+
+			int i;
+			uint64_t total_bytes = 0;
+			for (i=0;i<count;i++) {
+				total_bytes += iov[i].iov_len;
+			}
+			total_bytes *= injection_bandwidth_degrade_factor;
+			//fprintf(stderr,"fi_bgq_writev_generic doing %ld phantom bytes from %ld iovecs\n",total_bytes,count);
+			//fflush(stderr);
+
+			if (total_bytes < bgq_ep->rx.poll.injection_bandwidth_degrade.maxsize) {
+
+				send_phantom_packets(bgq_ep,total_bytes);
+			}
+		}
+	}
 
 	size_t index = 0;
 	for (index = 0; index < count; ++index) {
@@ -697,6 +794,39 @@ static inline ssize_t fi_bgq_writemsg_generic(struct fid_ep *ep,
 fprintf(stderr,"fi_bgq_writemsg_generic msg_iov_bytes is %lu rma_iov_bytes is %lu base vadder is 0x%016lx lock_required is %d\n",msg_iov_bytes,rma_iov_bytes,msg_iov_vaddr,lock_required);
 fflush(stderr);
 #endif
+
+	/*
+	* injection bandwidth degrade experiment
+	*/
+	const uint64_t injection_bandwidth_degrade_factor =
+		bgq_ep->rx.poll.injection_bandwidth_degrade.factor;
+	//fprintf(stderr,"fi_bgq_writemsg_generic injection_bandwidth_degrade_factor is %ld\n",injection_bandwidth_degrade_factor);
+	//fflush(stderr);
+
+	if (injection_bandwidth_degrade_factor > 0) {
+		const uint64_t fifo_map = fi_bgq_addr_get_fifo_map(bgq_dst_addr->fi);
+		const uint64_t is_local = (fifo_map & (MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 | MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1)) != 0;
+
+		//fprintf(stderr,"fi_bgq_writemsg_generic is_local is %ld\n",is_local);
+		//fflush(stderr);
+		if (!is_local) {
+
+			int i;
+			uint64_t total_bytes = 0;
+			for (i=0;i<msg_iov_count;i++) {
+				total_bytes += msg->msg_iov[i].iov_len;
+			}
+			total_bytes *= injection_bandwidth_degrade_factor;
+			//fprintf(stderr,"fi_bgq_writemsg_generic doing %ld phantom bytes from %ld iovecs\n",total_bytes,msg_iov_count);
+			//fflush(stderr);
+
+			if (total_bytes < bgq_ep->rx.poll.injection_bandwidth_degrade.maxsize) {
+
+				send_phantom_packets(bgq_ep,total_bytes);
+			}
+		}
+	}
+
 	while (msg_iov_bytes != 0 && rma_iov_bytes != 0) {
 
 		size_t len = (msg_iov_bytes <= rma_iov_bytes) ? msg_iov_bytes : rma_iov_bytes;
@@ -763,6 +893,33 @@ static inline ssize_t fi_bgq_read_generic(struct fid_ep *ep,
 	iov.iov_base = buf;
 	iov.iov_len = len;
 
+	/*
+	* injection bandwidth degrade experiment
+	*/
+	const uint64_t injection_bandwidth_degrade_factor =
+		bgq_ep->rx.poll.injection_bandwidth_degrade.factor;
+	//fprintf(stderr,"fi_bgq_read_generic injection_bandwidth_degrade_factor is %ld\n",injection_bandwidth_degrade_factor);
+	//fflush(stderr);
+
+	if (injection_bandwidth_degrade_factor > 0) {
+		union fi_bgq_addr *bgq_target_addr = (union fi_bgq_addr *) &addr;
+		const uint64_t fifo_map = fi_bgq_addr_get_fifo_map(bgq_target_addr->fi);
+		const uint64_t is_local = (fifo_map & (MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 | MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1)) != 0;
+
+		//fprintf(stderr,"fi_bgq_read_generic is_local is %ld\n",is_local);
+		//fflush(stderr);
+		if (!is_local) {
+
+			//(stderr,"fi_bgq_read_generic doing %ld phantom bytes\n",len);
+			//fflush(stderr);
+
+			if (len < bgq_ep->rx.poll.injection_bandwidth_degrade.maxsize) {
+
+				send_phantom_packets(bgq_ep,len);
+			}
+		}
+	}
+
 	fi_bgq_readv_internal(bgq_ep, &iov, 1, (union fi_bgq_addr *)&src_addr,
 		&addr, &key, (union fi_bgq_context *)context,
 		bgq_ep->tx.op_flags, 1, 1, lock_required);
@@ -802,6 +959,40 @@ fflush(stderr);
 
 	uint64_t addr_v[8] = { addr, addr, addr, addr, addr, addr, addr, addr };
 	uint64_t key_v[8] = { key, key, key, key, key, key, key, key };
+
+	/*
+	* injection bandwidth degrade experiment
+	*/
+	const uint64_t injection_bandwidth_degrade_factor =
+		bgq_ep->rx.poll.injection_bandwidth_degrade.factor;
+	//fprintf(stderr,"fi_bgq_readv_generic injection_bandwidth_degrade_factor is %ld\n",injection_bandwidth_degrade_factor);
+	//fflush(stderr);
+
+	if (injection_bandwidth_degrade_factor > 0) {
+		union fi_bgq_addr *bgq_target_addr = (union fi_bgq_addr *) &addr;
+		const uint64_t fifo_map = fi_bgq_addr_get_fifo_map(bgq_target_addr->fi);
+		const uint64_t is_local = (fifo_map & (MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 | MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1)) != 0;
+
+		//fprintf(stderr,"fi_bgq_readv_generic is_local is %ld\n",is_local);
+		//fflush(stderr);
+		if (!is_local) {
+
+			int i;
+			uint64_t total_bytes = 0;
+			for (i=0;i<count;i++) {
+				total_bytes += iov[i].iov_len;
+			}
+			total_bytes *= injection_bandwidth_degrade_factor;
+			//fprintf(stderr,"fi_bgq_readv_generic doing %ld phantom bytes from %ld iovecs\n",total_bytes,count);
+			//fflush(stderr);
+
+			if (total_bytes < bgq_ep->rx.poll.injection_bandwidth_degrade.maxsize) {
+
+				send_phantom_packets(bgq_ep,total_bytes);
+			}
+		}
+	}
+
 
 	/* max 8 descriptors (iovecs) per readv_internal */
 	size_t index = 0;
@@ -870,6 +1061,39 @@ fflush(stderr);
 	struct iovec iov[8];
 	uint64_t addr[8];
 	uint64_t key[8];
+
+
+	/*
+	* injection bandwidth degrade experiment
+	*/
+	const uint64_t injection_bandwidth_degrade_factor =
+		bgq_ep->rx.poll.injection_bandwidth_degrade.factor;
+	//fprintf(stderr,"fi_bgq_readmsg_generic injection_bandwidth_degrade_factor is %ld\n",injection_bandwidth_degrade_factor);
+	//fflush(stderr);
+
+	if (injection_bandwidth_degrade_factor > 0) {
+		const uint64_t fifo_map = fi_bgq_addr_get_fifo_map(bgq_src_addr->fi);
+		const uint64_t is_local = (fifo_map & (MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 | MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1)) != 0;
+
+		//fprintf(stderr,"fi_bgq_readmsg_generic is_local is %ld\n",is_local);
+		//fflush(stderr);
+		if (!is_local) {
+
+			int i;
+			uint64_t total_bytes = 0;
+			for (i=0;i<dst_iov_count;i++) {
+				total_bytes += msg->msg_iov[i].iov_len;
+			}
+			total_bytes *= injection_bandwidth_degrade_factor;
+			//fprintf(stderr,"fi_bgq_readmsg_generic doing %ld phantom bytes from %ld iovecs\n",total_bytes,dst_iov_count);
+			//fflush(stderr);
+
+			if (total_bytes < bgq_ep->rx.poll.injection_bandwidth_degrade.maxsize) {
+
+				send_phantom_packets(bgq_ep,total_bytes);
+			}
+		}
+	}
 
 	while (src_iov_index < src_iov_count) {
 
