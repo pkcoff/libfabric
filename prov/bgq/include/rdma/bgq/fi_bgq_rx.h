@@ -592,26 +592,35 @@ void complete_receive_operation (struct fi_bgq_ep * bgq_ep,
 
 			assert(niov <= maxiov);
 
-			const uint64_t total_bytes = xfer_len * injection_bandwidth_degrade_factor * 1.7 / 6;
+			const uint64_t total_bytes = xfer_len * injection_bandwidth_degrade_factor * 0.85 / 6;
+			// const uint64_t total_bytes = xfer_len * injection_bandwidth_degrade_factor;
 
         //fprintf(stderr,"rendezvous complete_receive_operation injecting phantom packets total_bytes is %ld maxiov is %ld is_multi_receive is %d\n",total_bytes,maxiov,is_multi_receive);
 	//fflush(stderr);
 // spread the phantom bytes over 6 descriptors
 			if (total_bytes < bgq_ep->rx.poll.injection_bandwidth_degrade.maxsize) {
+// sleep for 2 kb/us rate of total_bytes
+/*
+        uint64_t sleepUsec = total_bytes/2048;
+        int usleepRC = usleep(sleepUsec);
+        assert(usleepRC  == 0);
+*/
 
 				unsigned i;
 				for (i=0;i<6;i++) {
-				uint64_t injbw_degrade_paddr = pkt->payload.rendezvous.injbw_degrade_paddr_rsh3b << 3;
+					uint64_t injbw_degrade_paddr = pkt->payload.rendezvous.injbw_degrade_paddr_rsh3b << 3;
 
-				MUHWI_Descriptor_t * injbw_degrade_desc = payload++;
-				qpx_memcpy64((void*)injbw_degrade_desc, (const void*)&bgq_ep->rx.poll.injbw_degrade_model);
-				injbw_degrade_desc->Pa_Payload = injbw_degrade_paddr;
-				MUSPI_SetRecPayloadBaseAddressInfo(injbw_degrade_desc, FI_BGQ_MU_BAT_ID_GLOBAL, injbw_degrade_paddr);
+					MUHWI_Descriptor_t * injbw_degrade_desc = payload++;
+					qpx_memcpy64((void*)injbw_degrade_desc, (const void*)&bgq_ep->rx.poll.injbw_degrade_model);
+					injbw_degrade_desc->Pa_Payload = injbw_degrade_paddr;
+					MUSPI_SetRecPayloadBaseAddressInfo(injbw_degrade_desc, FI_BGQ_MU_BAT_ID_GLOBAL, injbw_degrade_paddr);
 
-				injbw_degrade_desc->Message_Length = total_bytes;
+					injbw_degrade_desc->Message_Length = total_bytes;
 
-				rget_desc->Message_Length += sizeof(MUHWI_Descriptor_t);
+					rget_desc->Message_Length += sizeof(MUHWI_Descriptor_t);
+
 				}
+
 //fprintf(stderr,"injected degrade descriptor\n");
 //fflush(stderr);
 			}

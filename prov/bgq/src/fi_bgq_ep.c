@@ -522,9 +522,13 @@ static int fi_bgq_ep_tx_init (struct fi_bgq_ep *bgq_ep,
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id =
 			FI_BGQ_MU_BAT_ID_COUNTER;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset = 0;
-		desc->Torus_FIFO_Map =
-			MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 |
-			MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1;
+
+		// set local link based on even-ness of tcoord
+		uint32_t tcoord = Kernel_MyTcoord();
+		if (tcoord % 2 == 0)
+			desc->Torus_FIFO_Map = MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0;
+		else
+			desc->Torus_FIFO_Map = MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1;
 
 		/* specified at injection time */
 		desc->Pa_Payload = 0;
@@ -1102,9 +1106,13 @@ static int fi_bgq_ep_rx_init(struct fi_bgq_ep *bgq_ep)
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Rec_Counter_Base_Address_Id =
 			FI_BGQ_MU_BAT_ID_COUNTER;
 		desc->PacketHeader.messageUnitHeader.Packet_Types.Direct_Put.Counter_Offset = 0;
-		desc->Torus_FIFO_Map =
-			MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 |
-			MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1;
+
+		// set local link based on even-ness of tcoord
+		uint32_t tcoord = Kernel_MyTcoord();
+		if (tcoord % 2 == 0)
+			desc->Torus_FIFO_Map = MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0;
+		else
+			desc->Torus_FIFO_Map = MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1;
 
 		/* specified at injection time */
 		desc->Pa_Payload = 0;

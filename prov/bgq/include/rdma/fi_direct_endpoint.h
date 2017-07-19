@@ -524,6 +524,20 @@ ssize_t fi_bgq_inject_generic(struct fid_ep *ep,
 	fprintf(stderr,"fi_bgq_inject_generic dest addr is:\n");
 	FI_BGQ_ADDR_DUMP((fi_addr_t *)&dest_addr);
 #endif
+        const uint64_t injection_bandwidth_degrade_factor =
+                bgq_ep->rx.poll.injection_bandwidth_degrade.factor;
+        if (injection_bandwidth_degrade_factor > 0) {
+
+                const uint64_t fifo_map = fi_bgq_addr_get_fifo_map(bgq_dst_addr.fi);
+                const uint64_t is_local = (fifo_map & (MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 | MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1)) != 0;
+                if (!is_local) {
+
+        		uint64_t sleepUsec = len*injection_bandwidth_degrade_factor/2048;
+        		int usleepRC = usleep(sleepUsec);
+        		assert(usleepRC  == 0);
+		}
+	}
+
 	MUSPI_InjFifoAdvanceDesc(bgq_ep->tx.injfifo.muspi_injfifo);
 
 	/* TODO - if this is a FI_CLASS_STX_CTX, then the lock is required */
@@ -623,6 +637,20 @@ ssize_t fi_bgq_send_generic_flags(struct fid_ep *ep,
 			fi_bgq_mu_packet_type_set(hdr, FI_BGQ_MU_PACKET_TYPE_EAGER);	/* clear the 'TAG' bit in the packet type */
 		}
 
+        const uint64_t injection_bandwidth_degrade_factor =
+                bgq_ep->rx.poll.injection_bandwidth_degrade.factor;
+        if (injection_bandwidth_degrade_factor > 0) {
+
+                const uint64_t fifo_map = fi_bgq_addr_get_fifo_map(bgq_dst_addr.fi);
+                const uint64_t is_local = (fifo_map & (MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 | MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1)) != 0;
+                if (!is_local) {
+
+        		uint64_t sleepUsec = xfer_len*injection_bandwidth_degrade_factor/2048;
+        		int usleepRC = usleep(sleepUsec);
+        		assert(usleepRC  == 0);
+		}
+	}
+
 		MUSPI_InjFifoAdvanceDesc(bgq_ep->tx.injfifo.muspi_injfifo);
 
 #ifdef FI_BGQ_REMOTE_COMPLETION
@@ -671,6 +699,20 @@ ssize_t fi_bgq_send_generic_flags(struct fid_ep *ep,
 
 			fi_bgq_cq_enqueue_pending(bgq_ep->send_cq, bgq_context, lock_required);
 
+        const uint64_t injection_bandwidth_degrade_factor =
+                bgq_ep->rx.poll.injection_bandwidth_degrade.factor;
+        if (injection_bandwidth_degrade_factor > 0) {
+
+                const uint64_t fifo_map = fi_bgq_addr_get_fifo_map(bgq_dst_addr.fi);
+                const uint64_t is_local = (fifo_map & (MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 | MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1)) != 0;
+                if (!is_local) {
+
+        		uint64_t sleepUsec = xfer_len*injection_bandwidth_degrade_factor/2048;
+        		int usleepRC = usleep(sleepUsec);
+        		assert(usleepRC  == 0);
+		}
+	}
+
 			MUSPI_InjFifoAdvanceDesc(bgq_ep->tx.injfifo.muspi_injfifo);
 
 		} else
@@ -707,6 +749,20 @@ ssize_t fi_bgq_send_generic_flags(struct fid_ep *ep,
 						MUHWI_ATOMIC_OPCODE_LOAD_CLEAR);
 
 				fi_bgq_cq_enqueue_pending(bgq_ep->send_cq, bgq_context, lock_required);
+
+        const uint64_t injection_bandwidth_degrade_factor =
+                bgq_ep->rx.poll.injection_bandwidth_degrade.factor;
+        if (injection_bandwidth_degrade_factor > 0) {
+
+                const uint64_t fifo_map = fi_bgq_addr_get_fifo_map(bgq_dst_addr.fi);
+                const uint64_t is_local = (fifo_map & (MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL0 | MUHWI_DESCRIPTOR_TORUS_FIFO_MAP_LOCAL1)) != 0;
+                if (!is_local) {
+
+        		uint64_t sleepUsec = xfer_len*injection_bandwidth_degrade_factor/2048;
+        		int usleepRC = usleep(sleepUsec);
+        		assert(usleepRC  == 0);
+		}
+	}
 
 				MUSPI_InjFifoAdvanceDesc(bgq_ep->tx.injfifo.muspi_injfifo);
 			}
