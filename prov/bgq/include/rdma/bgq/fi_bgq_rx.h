@@ -592,12 +592,15 @@ void complete_receive_operation (struct fi_bgq_ep * bgq_ep,
 
 			assert(niov <= maxiov);
 
-			const uint64_t total_bytes = xfer_len * injection_bandwidth_degrade_factor;
+			const uint64_t total_bytes = xfer_len * injection_bandwidth_degrade_factor * 1.7 / 6;
 
         //fprintf(stderr,"rendezvous complete_receive_operation injecting phantom packets total_bytes is %ld maxiov is %ld is_multi_receive is %d\n",total_bytes,maxiov,is_multi_receive);
 	//fflush(stderr);
+// spread the phantom bytes over 6 descriptors
 			if (total_bytes < bgq_ep->rx.poll.injection_bandwidth_degrade.maxsize) {
 
+				unsigned i;
+				for (i=0;i<6;i++) {
 				uint64_t injbw_degrade_paddr = pkt->payload.rendezvous.injbw_degrade_paddr_rsh3b << 3;
 
 				MUHWI_Descriptor_t * injbw_degrade_desc = payload++;
@@ -608,8 +611,14 @@ void complete_receive_operation (struct fi_bgq_ep * bgq_ep,
 				injbw_degrade_desc->Message_Length = total_bytes;
 
 				rget_desc->Message_Length += sizeof(MUHWI_Descriptor_t);
+				}
 //fprintf(stderr,"injected degrade descriptor\n");
 //fflush(stderr);
+			}
+			else {
+				fprintf(stdout,"ERROR: Phantom packet injection bendwidth degradation factor %ld cannot be done -- %ld phantom bytes ( total bytes / 6 ) greater than OFI_INJECTION_BANDWIDTH_DEGRADE_MAXSIZE of %ld\n",injection_bandwidth_degrade_factor,total_bytes,bgq_ep->rx.poll.injection_bandwidth_degrade.maxsize);
+				fflush(stdout);
+
 			}
 		}
 

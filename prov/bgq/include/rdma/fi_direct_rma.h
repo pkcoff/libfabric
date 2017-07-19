@@ -62,9 +62,11 @@ static inline int fi_bgq_check_rma(struct fi_bgq_ep *bgq_ep,
 	return 0;
 }
 
+
 static inline void send_phantom_packets(struct fi_bgq_ep *bgq_ep, uint64_t total_bytes)
 {
 	// inject an injbw_degrade_model descriptor for the total_bytes
+/*
 	uint64_t injbw_degrade_paddr = bgq_ep->rx.poll.injection_bandwidth_degrade.paddr_rsh3b << 3;
 	MUHWI_Descriptor_t * injbw_degrade_desc = fi_bgq_spi_injfifo_tail_wait(&bgq_ep->rx.poll.injfifo);
 	qpx_memcpy64((void*)injbw_degrade_desc, (const void*)&bgq_ep->rx.poll.injbw_degrade_model);
@@ -74,17 +76,44 @@ static inline void send_phantom_packets(struct fi_bgq_ep *bgq_ep, uint64_t total
 	injbw_degrade_desc->Message_Length = total_bytes;
 
 	MUSPI_InjFifoAdvanceDesc(bgq_ep->rx.poll.injfifo.muspi_injfifo);
+*/
+
+// sleep for 2 kb/us rate of total_bytes
+	uint64_t sleepUsec = total_bytes/2048;
+// printf("sleeping for %ld us for %ld total_bytes\n",sleepUsec,total_bytes);
+	int usleepRC = usleep(sleepUsec);
+	assert(usleepRC  == 0);
+
+return;
 	//fprintf(stderr,"injected degrade descriptor\n");
 	//fflush(stderr);
-
-	// use the dput_completion_model to monitor for the completion of the injbw_degrade_model
-	uint64_t byte_counter = total_bytes;
+/*
+uint64_t *sp_byte_counter = (uint64_t *) malloc(8);
+uint64_t *sp_byte_counter_zero = (uint64_t *) malloc(8);
+ *sp_byte_counter_zero = 0;
+	*sp_byte_counter = total_bytes;
 	uint64_t byte_counter_paddr = 0;
+	uint64_t sp_byte_counter_zero_paddr = 0;
 	uint32_t cnk_rc __attribute__ ((unused));
-	cnk_rc = fi_bgq_cnk_vaddr2paddr((void*)&byte_counter,
+	cnk_rc = fi_bgq_cnk_vaddr2paddr((void*)sp_byte_counter,
 	sizeof(uint64_t), &byte_counter_paddr);
 	assert(cnk_rc == 0);
+        cnk_rc = fi_bgq_cnk_vaddr2paddr((void*)sp_byte_counter_zero,
+        sizeof(uint64_t), &sp_byte_counter_zero_paddr);
+        assert(cnk_rc == 0);
 
+
+ injbw_degrade_desc = fi_bgq_spi_injfifo_tail_wait(&bgq_ep->rx.poll.injfifo);
+        qpx_memcpy64((void*)injbw_degrade_desc, (const void*)&bgq_ep->rx.poll.injbw_degrade_model);
+        injbw_degrade_desc->Pa_Payload = sp_byte_counter_zero_paddr;
+        MUSPI_SetRecPayloadBaseAddressInfo(injbw_degrade_desc, FI_BGQ_MU_BAT_ID_GLOBAL, byte_counter_paddr);
+
+        injbw_degrade_desc->Message_Length = 8;
+
+        MUSPI_InjFifoAdvanceDesc(bgq_ep->rx.poll.injfifo.muspi_injfifo);
+
+*/
+/*
 	MUHWI_Descriptor_t * dput_desc =
 	fi_bgq_spi_injfifo_tail_wait(&bgq_ep->rx.poll.injfifo);
 
@@ -93,15 +122,19 @@ static inline void send_phantom_packets(struct fi_bgq_ep *bgq_ep, uint64_t total
 		MUSPI_GetAtomicAddress(byte_counter_paddr,
 		MUHWI_ATOMIC_OPCODE_LOAD_CLEAR);
 	MUSPI_InjFifoAdvanceDesc(bgq_ep->rx.poll.injfifo.muspi_injfifo);
-
+*/
 	//fprintf(stderr,"waiting for byte_counter on injected degrade descriptor\n");
 	//fflush(stderr);
-	while (byte_counter > 0) {}
+//	while (*sp_byte_counter > 0) {
+//	fprintf(stderr,"while byte_counter is now %ld\n",*sp_byte_counter);
+//	fflush(stderr);
 
-	//fprintf(stderr,"DONE waiting for byte_counter on injected degrade descriptor\n");
-	//fflush(stderr);
+//	}
 
-}	
+	fprintf(stderr,"DONE waiting for byte_counter on injected degrade descriptor\n");
+	fflush(stderr);
+
+}
 
 static inline void fi_bgq_readv_internal (struct fi_bgq_ep * bgq_ep,
 		const struct iovec * iov,
@@ -665,8 +698,8 @@ static inline ssize_t fi_bgq_write_generic(struct fid_ep *ep,
 		//fflush(stderr);
 		if (!is_local) {
 
-			fprintf(stderr,"fi_bgq_write_generic doing %ld phantom bytes\n",len);
-			fflush(stderr);
+			//fprintf(stderr,"fi_bgq_write_generic doing %ld phantom bytes\n",len);
+			//fflush(stderr);
 
 			if (len < bgq_ep->rx.poll.injection_bandwidth_degrade.maxsize) {
 
@@ -910,7 +943,7 @@ static inline ssize_t fi_bgq_read_generic(struct fid_ep *ep,
 		//fflush(stderr);
 		if (!is_local) {
 
-			//(stderr,"fi_bgq_read_generic doing %ld phantom bytes\n",len);
+			//fprintf(stderr,"fi_bgq_read_generic doing %ld phantom bytes\n",len);
 			//fflush(stderr);
 
 			if (len < bgq_ep->rx.poll.injection_bandwidth_degrade.maxsize) {
